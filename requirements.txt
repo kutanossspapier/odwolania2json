@@ -1,0 +1,10 @@
+﻿fastapi>=0.110
+uvicorn>=0.29
+pdfplumber>=0.11
+pypdfium2>=4.30
+pytesseract>=0.3.10
+PyYAML>=6.0
+pydantic>=2.6
+openai>=1.30
+python-multipart>=0.0.9
+pytest>=8.0

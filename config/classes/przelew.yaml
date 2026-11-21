@@ -1,0 +1,19 @@
+name: przelew
+title: Potwierdzenie przelewu
+description: >
+  Potwierdzenie wykonania polecenia przelewu bankowego (np. wpisu od
+  odwołania lub opłaty skarbowej od pełnomocnictwa).
+recognition:
+  min_score: 5
+  llm_hint: >
+    Bankowe potwierdzenie przelewu: płatnik, odbiorca, rachunki, kwota,
+    data i tytuł przelewu.
+  keywords:
+    - {pattern: 'potwierdzenie\s+(wykonania\s+|realizacji\s+)?(polecenia\s+)?przelewu|polecenie\s+przelewu', weight: 3}
+    - {pattern: 'rachunek\s+(odbiorcy|obciążany|nadawcy|płatnika|beneficjenta|do\s+obciążenia)', weight: 2}
+    - {pattern: '(\bpl\s?)?\d{2}(\s?\d{4}){6}\b', weight: 2}
+    - {pattern: 'wykonano\s+przelew|tytuł\s+przelewu|bank\s+potwierdza|numer\s+transakcji|nr\s+ref', weight: 2}
+    - {pattern: 'kwota', weight: 1}
+    - {pattern: '\bpln\b|\bzł\b', weight: 1}
+    - {pattern: 'tytuł|\bopis\b', weight: 1}
+    - {pattern: 'zrealizowano|wykonano|zaksięgowano', weight: 1}

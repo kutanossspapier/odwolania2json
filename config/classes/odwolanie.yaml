@@ -1,0 +1,22 @@
+name: odwolanie
+title: Odwołanie do KIO
+description: >
+  Pismo wnoszące odwołanie do Prezesa Krajowej Izby Odwoławczej od czynności
+  zamawiającego w postępowaniu o udzielenie zamówienia publicznego. Zawiera
+  dane Odwołującego, Zamawiającego, zarzuty i żądania.
+recognition:
+  min_score: 5            # poniżej tego dokument NIE należy do tej klasy
+  llm_hint: >
+    Odwołanie wnoszone przez wykonawcę (Odwołującego) do KIO przeciwko
+    zamawiającemu; zawiera zarzuty naruszenia przepisów Pzp.
+  keywords:               # wzorzec regex (bez rozróżniania wielkości liter) + waga
+    - {pattern: '^\s*odwołanie\s*$', weight: 3}
+    - {pattern: 'prezes\w*\s+krajowej\s+izby\s+odwoławczej', weight: 2}
+    - {pattern: 'odwołując\w+', weight: 2}
+    - {pattern: 'zamawiając\w+', weight: 1}
+    - {pattern: 'zarzut', weight: 1.5}
+    - {pattern: 'art\.\s*5(13|14|15)', weight: 2}
+    - {pattern: 'wnoszę\s+o|wnosimy\s+o|wnosi\s+o', weight: 1}
+    # sygnały, że to orzeczenie/decyzja, a nie odwołanie (waga ujemna)
+    - {pattern: '^\s*(postanowienie|wyrok|uchwała|decyzja)\s*$', weight: -4}
+    - {pattern: 'sygn\.\s*akt', weight: -4}

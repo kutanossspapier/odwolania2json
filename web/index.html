@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Odwołania2json – podgląd</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --ink:#1b2230; --muted:#667085; --line:#e4e7ec;
+  --accent:#2f5bea; --accent-soft:#e8eefe; --ok:#12805c; --ok-soft:#e3f5ee;
+  --warn:#b54708; --warn-soft:#fff2e0; --bad:#b42318; --bad-soft:#fde8e6;
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f131a; --card:#171c26; --ink:#e7eaf0; --muted:#98a2b3; --line:#2a3140;
+  --accent:#7d9bff; --accent-soft:#1d2744; --ok:#4cc9a0; --ok-soft:#12302a;
+  --warn:#f5a54a; --warn-soft:#3a2a12; --bad:#ff8a80; --bad-soft:#3a1b19;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}
+header .sub{color:var(--muted);font-size:13px}
+main{max-width:1500px;margin:0 auto;padding:20px 24px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;margin-bottom:16px}
+.drop{flex:1 1 320px;border:2px dashed var(--line);border-radius:12px;padding:14px 18px;text-align:center;color:var(--muted);cursor:pointer;background:var(--card);transition:.15s}
+.drop.over,.drop:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.drop b{color:var(--ink)}
+.sample{flex:1 1 320px;display:flex;flex-direction:column;gap:6px;justify-content:center}
+.sample label{font-size:13px;color:var(--muted)}
+select{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px}
+.step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card);position:relative}
+.step .n{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.step .t{font-weight:600}
+.step .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+.step.done{border-color:var(--ok)} .step.done .n{color:var(--ok)}
+.step.soon{opacity:.55;border-style:dashed}
+.grid{display:grid;grid-template-columns:minmax(320px,5fr) minmax(360px,6fr);gap:16px;align-items:start}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+.viewer{position:sticky;top:12px}
+iframe{width:100%;height:78vh;border:1px solid var(--line);border-radius:8px;background:#fff}
+.empty{color:var(--muted);text-align:center;padding:60px 10px}
+.verdict{display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.badge{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:16px}
+.badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.none{background:var(--bad-soft);color:var(--bad)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.meta{color:var(--muted);font-size:13px}
+.reason{background:var(--accent-soft);border-radius:8px;padding:10px 12px;margin:8px 0 0}
+.bars{display:grid;gap:10px}
+.bar-row .lbl{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:3px}
+.track{position:relative;height:14px;background:var(--line);border-radius:7px;overflow:visible}
+.fill{height:100%;border-radius:7px;background:var(--muted)}
+.fill.win{background:var(--ok)}
+.thr{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.7}
+.legend{font-size:12px;color:var(--muted);margin-top:8px}
+details{border:1px solid var(--line);border-radius:8px;margin-top:8px;padding:0 12px}
+summary{cursor:pointer;padding:9px 0;font-weight:600;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
+td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;border-top:0}
+code{font-family:var(--mono);font-size:12px;word-break:break-all}
+.yes{color:var(--ok);font-weight:700} .no{color:var(--muted)}
+.snip{background:var(--ok-soft);color:var(--ok);padding:0 4px;border-radius:4px;font-family:var(--mono);font-size:12px}
+.neg{color:var(--bad);font-weight:600}
+pre{white-space:pre-wrap;font:12.5px/1.45 var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:340px;overflow:auto;margin:6px 0 10px}
+.tag{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tag.ocr{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.truth{font-size:13px;margin-top:6px}
+.spin{display:none;color:var(--muted);margin-left:8px}
+.col{display:grid;gap:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Odwołania2json</h1>
+  <span class="sub">podgląd: jak aplikacja rozpoznaje dokument i dlaczego</span>
+</header>
+<main>
+  <div class="steps" id="steps"></div>
+
+  <div class="toolbar">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="application/pdf" hidden>
+      <b>Wgraj PDF</b> – kliknij albo upuść plik tutaj
+    </label>
+    <div class="sample">
+      <label for="samples">…albo wybierz przykład z danych UZP <span id="spin" class="spin">analizuję…</span></label>
+      <select id="samples"><option value="">— wybierz —</option></select>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card viewer">
+      <h2>Podgląd PDF</h2>
+      <div id="pdfbox" class="empty">Tu pojawi się dokument.</div>
+    </div>
+    <div class="col" id="results">
+      <div class="card empty">Wgraj PDF albo wybierz przykład, żeby zobaczyć wynik.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const PIPE = [
+  ["1","Tekst z PDF","pdfplumber czyta tekst i pozycje słów; skan → OCR (Tesseract, pol)","done"],
+  ["2","Rozpoznanie typu","punkty za słowa kluczowe z plików YAML; poniżej progu = „nie moja klasa”","done"],
+  ["3","Pola przez regex","NIP, KRS, kwoty, daty, rachunki…","soon"],
+  ["4","Pola przez LLM","nazwy, osoby, powód odwołania…","soon"],
+  ["5","JSON","zgodny z formatem UZP","soon"],
+];
+$("#steps").innerHTML = PIPE.map(([n,t,d,s]) =>
+  `<div class="step ${s}"><div class="n">Krok ${n}${s==="soon"?" · wkrótce":" · działa"}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join("");
+
+async function loadSamples(){
+  const list = await (await fetch("/api/samples")).json();
+  const sel = $("#samples");
+  const groups = {};
+  list.forEach(s => { const g = s.negative ? "Negatywne (powinny dać pusty wynik)" : s.id.split("/")[0]; (groups[g] ||= []).push(s); });
+  Object.entries(groups).forEach(([g, items]) => {
+    const og = document.createElement("optgroup"); og.label = g;
+    items.forEach(s => { const o = document.createElement("option"); o.value = s.id;
+      o.textContent = s.id.split("/").slice(1).join("/"); o.dataset.truth = s.truth ?? ""; og.appendChild(o); });
+    sel.appendChild(og);
+  });
+}
+function showPdf(url){ $("#pdfbox").className=""; $("#pdfbox").innerHTML = `<iframe src="${url}#view=FitH"></iframe>`; }
+function busy(b){ $("#spin").style.display = b ? "inline" : "none"; }
+
+async function analyzeSample(id, truth){
+  busy(true); showPdf("/api/sample-pdf?id="+encodeURIComponent(id));
+  try { render(await (await fetch("/api/analyze-sample?id="+encodeURIComponent(id))).json(), truth, true); }
+  catch(e){ fail(e); } finally { busy(false); }
+}
+async function analyzeFile(f){
+  busy(true); showPdf(URL.createObjectURL(f)); $("#samples").value="";
+  const fd = new FormData(); fd.append("file", f);
+  try {
+    const r = await fetch("/api/analyze", {method:"POST", body:fd});
+    if(!r.ok) throw new Error((await r.json()).detail);
+    render(await r.json(), null, false);
+  } catch(e){ fail(e); } finally { busy(false); }
+}
+function fail(e){ $("#results").innerHTML = `<div class="card"><span class="neg">Błąd:</span> ${esc(e.message||e)}</div>`; }
+
+function render(d, truth, isSample){
+  const c = d.classification, win = c.class_name;
+  const maxS = Math.max(...Object.values(c.scores), ...Object.values(c.thresholds), 1) * 1.15;
+  const conf = Math.round(c.confidence * 100);
+  const badgeCls = win ? (c.uncertain ? "warn" : "ok") : "none";
+  let truthHtml = "";
+  if (isSample){
+    const expected = truth || null;
+    const good = expected === win;
+    truthHtml = `<div class="truth">Oczekiwany wynik w danych UZP: <b>${expected ? esc(c.titles[expected]||expected) : "pusty (negatyw)"}</b> — ${good ? '<span class="yes">zgodne ✓</span>' : '<span class="neg">NIEZGODNE ✗</span>'}</div>`;
+  }
+  const bars = Object.keys(c.scores).sort((a,b)=>c.scores[b]-c.scores[a]).map(n => `
+    <div class="bar-row"><div class="lbl"><span>${esc(c.titles[n])}</span><span><b>${c.scores[n]}</b> pkt (próg ${c.thresholds[n]})</span></div>
+    <div class="track"><div class="fill ${n===win?"win":""}" style="width:${Math.max(0,c.scores[n])/maxS*100}%"></div>
+    <div class="thr" style="left:${c.thresholds[n]/maxS*100}%" title="próg"></div></div></div>`).join("");
+  const kw = Object.keys(c.scores).sort((a,b)=>c.scores[b]-c.scores[a]).map((n,i) => `
+    <details ${i===0?"open":""}><summary>${esc(c.titles[n])} – słowa kluczowe (${c.details[n].filter(x=>x.matched).length}/${c.details[n].length} zadziałało)</summary>
+    <table><tr><th></th><th>wzorzec (regex)</th><th>waga</th><th>znaleziono</th></tr>
+    ${c.details[n].map(x=>`<tr><td class="${x.matched?"yes":"no"}">${x.matched?"✓":"–"}</td><td><code>${esc(x.pattern)}</code></td>
+      <td class="${x.weight<0?"neg":""}">${x.weight>0?"+":""}${x.weight}</td><td>${x.snippet?`<span class="snip">${esc(x.snippet)}</span>`:""}</td></tr>`).join("")}</table></details>`).join("");
+  const pages = d.pages.map(p => `<tr><td>${p.number}</td><td>${p.chars}</td><td>${p.words}</td>
+    <td>${p.ocr?'<span class="tag ocr">OCR (skan)</span>':'<span class="tag">warstwa tekstowa</span>'}</td>
+    <td>${p.used_for_classification?"tak":"–"}</td></tr>`).join("");
+  const texts = d.text.map(t => `<details><summary>Strona ${t.page}</summary><pre>${esc(t.text)}</pre></details>`).join("");
+  $("#results").innerHTML = `
+  <div class="card">
+    <h2>Wynik rozpoznania</h2>
+    <div class="verdict"><span class="badge ${badgeCls}">${win ? esc(c.title) : "Nie rozpoznano (pusty JSON)"}</span>
+      <span class="meta">${win ? `pewność <b>${conf}%</b> · plik <code>config/classes/${esc(c.yaml_file)}</code>${c.uncertain?" · niepewne":""}` : "dokument nie pasuje do żadnej klasy"}</span></div>
+    <div class="meta">${esc(d.filename)} · ${d.pages.length} str. · tekst ${d.timing_ms.extract} ms · klasyfikacja ${d.timing_ms.classify} ms${d.used_ocr?" · użyto OCR":""}</div>
+    ${truthHtml}
+    <div class="reason"><b>Dlaczego?</b> ${esc(c.reason)}</div>
+  </div>
+  <div class="card"><h2>Punkty klas</h2><div class="bars">${bars}</div>
+    <div class="legend">Czarna kreska = próg. Klasa wygrywa, jeśli przekroczy próg i ma najwięcej punktów. Pewność = udział zwycięzcy w sumie punktów dwóch najlepszych klas.</div></div>
+  <div class="card"><h2>Które słowa kluczowe zadziałały</h2>${kw}
+    <div class="legend">Wzorce pochodzą z plików YAML – żeby dodać typ dokumentu, wystarczy nowy plik, bez zmian w kodzie. Klasyfikator patrzy tylko na pierwsze 2 strony.</div></div>
+  <div class="card"><h2>Strony i OCR</h2>
+    <table><tr><th>str.</th><th>znaków</th><th>słów</th><th>źródło tekstu</th><th>użyta do klasyfikacji</th></tr>${pages}</table>
+    ${d.warnings.map(w=>`<div class="neg">⚠ ${esc(w)}</div>`).join("")}
+    <div class="legend">Strona z mniej niż 30 znakami uznawana jest za skan i czytana OCR-em. Każde słowo ma zapisane współrzędne – posłużą do podświetlania pól w PDF.</div></div>
+  <div class="card"><h2>Wyciągnięty tekst</h2>${texts}</div>`;
+}
+
+$("#samples").addEventListener("change", e => { const o = e.target.selectedOptions[0]; if(o.value) analyzeSample(o.value, o.dataset.truth||null); });
+$("#file").addEventListener("change", e => e.target.files[0] && analyzeFile(e.target.files[0]));
+const drop = $("#drop");
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove("over");}));
+drop.addEventListener("drop", e => e.dataTransfer.files[0] && analyzeFile(e.dataTransfer.files[0]));
+loadSamples();
+</script>
+</body>
+</html>

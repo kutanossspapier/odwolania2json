@@ -1,0 +1,19 @@
+name: pelnomocnictwo
+title: Pełnomocnictwo
+description: >
+  Pełnomocnictwo procesowe udzielane przez mocodawcę (wykonawcę) osobom
+  reprezentującym go w postępowaniu odwoławczym przed KIO.
+recognition:
+  min_score: 5
+  llm_hint: >
+    Dokument, w którym mocodawca ustanawia pełnomocnika(ów) do reprezentowania
+    go w postępowaniu odwoławczym.
+  keywords:
+    - {pattern: '^\s*pełnomocnictwo(\s+procesowe)?\s*$', weight: 3}
+    - {pattern: 'mocodawc\w+', weight: 2}
+    - {pattern: 'ustanawia\w*|udziela\w*\s+pełnomocnictwa|upoważnia\w*', weight: 1.5}
+    - {pattern: 'pełnomocnik\w*', weight: 1}
+    - {pattern: 'pełnomocnictw\w+', weight: 1}
+    - {pattern: 'reprezentowa\w+', weight: 1}
+    - {pattern: 'umocowan\w+|umocowuj\w+', weight: 1}
+    - {pattern: 'opłat\w+\s+skarbow\w+', weight: 0.5}

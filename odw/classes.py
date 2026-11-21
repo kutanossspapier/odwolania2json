@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from . import settings
+from . import learned, settings
 
 
 @dataclass
@@ -30,6 +30,8 @@ class PatternSpec:
     regex: re.Pattern
     group: int = 1
     groups: list[int] | None = None   # kilka wartości z jednego trafienia (np. dwa podpisy)
+    split: re.Pattern | None = None   # dzieli przechwycony tekst na listę (np. po przecinkach)
+    item: re.Pattern | None = None    # element listy musi pasować; grupa 1 = wartość (pozwala pominąć tytuły, śmieci)
 
 
 @dataclass
@@ -114,8 +116,9 @@ def _parse_field(d: dict) -> FieldSpec:
         if isinstance(p, str):
             pats.append(PatternSpec(_compile(p, cs)))
         else:
-            pats.append(PatternSpec(_compile(p["regex"], cs), int(p.get("group", 1)),
-                                    p.get("groups")))
+            pats.append(PatternSpec(_compile(p["regex"], cs), int(p.get("group", 1)), p.get("groups"),
+                                    _compile(p["split"], cs) if p.get("split") else None,
+                                    _compile(p["item"], cs) if p.get("item") else None))
     rules = [RuleSpec(_compile(r["pattern"], cs), r["value"]) for r in d.get("rules", [])]
     sp = d.get("source_pattern")
     return FieldSpec(
@@ -133,6 +136,7 @@ def _parse_field(d: dict) -> FieldSpec:
 
 def load_class(path: Path) -> DocClass:
     d = yaml.safe_load(path.read_text(encoding="utf-8"))
+    learned.merge_into(d)                      # reguły nauczone z poprawek człowieka (config/learned)
     rec = d.get("recognition", {})
     flags = re.IGNORECASE | re.MULTILINE
     kws = [Keyword(re.compile(k["pattern"], flags), float(k.get("weight", 1)))

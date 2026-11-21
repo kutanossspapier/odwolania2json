@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Optional
 
 from pydantic import TypeAdapter, ValidationError
@@ -41,8 +42,54 @@ SYSTEM_PROMPT = (
 
 def make_client():
     from openai import OpenAI
+    # max_retries=0: ponawianie robimy sami w chat_json (żeby kontrolować czas i komunikaty)
     return OpenAI(base_url=settings.LLM_BASE_URL, api_key=settings.LLM_API_KEY,
-                  timeout=settings.LLM_TIMEOUT)
+                  timeout=settings.LLM_TIMEOUT, max_retries=0)
+
+
+def explain_error(exc: Exception) -> str:
+    """Zamienia błąd klienta na zrozumiałą wskazówkę."""
+    status = getattr(exc, "status_code", None)
+    name = type(exc).__name__
+    if status in (401, 403):
+        return "serwer odrzucił klucz API (sprawdź LLM_API_KEY)"
+    if status == 404:
+        return "nie znaleziono modelu lub adresu (sprawdź LLM_MODEL i LLM_BASE_URL)"
+    if status == 429:
+        return "limit zapytań u dostawcy (spróbuj później)"
+    if name in ("APIConnectionError", "APITimeoutError") or isinstance(exc, (ConnectionError, TimeoutError)):
+        return "brak połączenia z serwerem LLM (adres, internet, czas oczekiwania)"
+    return f"{name}: {str(exc)[:120]}"
+
+
+def chat_json(client, messages: list[dict]) -> str:
+    """Jedno wywołanie czatu z odpowiedzią JSON.
+
+    - 429 / 5xx / błędy sieci: ponawiamy z rosnącą przerwą (LLM_RETRIES razy),
+    - 400 przy response_format: część dostawców go nie zna, więc próbujemy bez niego,
+    - pozostałe błędy (zły klucz, zły model) kończą od razu.
+    """
+    use_format, last = True, None
+    for attempt in range(settings.LLM_RETRIES + 1):
+        kw = dict(model=settings.LLM_MODEL, temperature=0, messages=messages)
+        if use_format:
+            kw["response_format"] = {"type": "json_object"}
+        try:
+            resp = client.chat.completions.create(**kw)
+            return resp.choices[0].message.content or ""
+        except Exception as exc:
+            last = exc
+            status = getattr(exc, "status_code", None)
+            if status == 400 and use_format:
+                use_format = False
+                continue
+            transient = (status in (429, 500, 502, 503, 504)
+                         or type(exc).__name__ in ("APIConnectionError", "APITimeoutError")
+                         or isinstance(exc, (ConnectionError, TimeoutError)))
+            if not transient or attempt >= settings.LLM_RETRIES:
+                raise
+            time.sleep(min(2 ** attempt, 8))
+    raise last
 
 
 def eligible(spec: FieldSpec) -> bool:
@@ -60,6 +107,34 @@ def needs_llm(spec: FieldSpec, res: FieldResult) -> bool:
     return res.status == "brak"
 
 
+def review_candidates(cls: DocClass, by_name: dict) -> list[FieldSpec]:
+    """Pola, w których regex COŚ znalazł, ale warto to sprawdzić: niska pewność, ostrzeżenia walidacji
+    albo pole, które człowiek już wcześniej poprawiał. Tylko pola jednowartościowe."""
+    try:
+        from . import feedback
+        corrected = feedback.corrected_fields(cls.name)
+    except Exception:
+        corrected = set()
+    out = []
+    for s in cls.fields:
+        r = by_name[s.name]
+        if not eligible(s) or s.method != "regex" or s.per_block or s.multiple:
+            continue
+        if s.if_found is not None or s.default is not None:      # flagi 0/1 i wartości domyślne - nie dla LLM
+            continue
+        if r.status != "ok" or r.value in (None, ""):
+            continue
+        if settings.LLM_REVIEW_ALL or r.confidence < LOW_CONFIDENCE or r.warnings or s.name in corrected:
+            out.append(s)
+    return out
+
+
+def _same_value(a, b) -> bool:
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(float(a) - float(b)) < 1e-6
+    return " ".join(str(a).split()).casefold() == " ".join(str(b).split()).casefold()
+
+
 def _field_type(spec: FieldSpec):
     t = _PY_TYPE.get(spec.type, str)
     if spec.per_block:       # lista: po jednym elemencie na każdy podmiot (blok)
@@ -70,6 +145,8 @@ def _field_type(spec: FieldSpec):
 def _clean_desc(desc: str) -> str:
     """Usuwa z opisu przykładowe wartości ("..., np. ZP.039.2025") - małe modele je przepisują."""
     d = re.split(r",?\s*np\.\s", desc)[0].strip()
+    if d.count("(") > d.count(")"):      # przykład był w nawiasie - domykamy go
+        d += ")"
     return d if d.endswith((".", ")")) or not d else d + "."
 
 
@@ -110,7 +187,8 @@ def _flatten(v):
 
 
 def build_prompt(cls: DocClass, specs: list[FieldSpec], doc: PdfText,
-                 examples: list[dict] | None = None) -> str:
+                 examples: list[dict] | None = None, hints: list[dict] | None = None,
+                 current: dict | None = None) -> str:
     lines = [f"Typ dokumentu: {cls.title}. {cls.llm_hint.strip()}", "", "Pola do wyciągnięcia:"]
     for s in specs:
         kind = {"integer": "liczba całkowita", "number": "liczba", "date": "data RRRR-MM-DD"}.get(s.type, "tekst")
@@ -120,11 +198,19 @@ def build_prompt(cls: DocClass, specs: list[FieldSpec], doc: PdfText,
             kind = f"lista ({kind}) - po jednej wartości na każdy podmiot (np. każdego zamawiającego), null gdy brak"
         elif s.multiple:
             kind = f"lista ({kind})"
-        lines.append(f'- "{s.name}" ({kind}): {_clean_desc(s.description)}')
+        line = f'- "{s.name}" ({kind}): {_clean_desc(s.description)}'
+        if current and s.name in current:     # tryb weryfikacji: model widzi, co odczytały reguły
+            line += (f' Reguły odczytały: {json.dumps(current[s.name], ensure_ascii=False)}. Sprawdź to z dokumentem: '
+                     'jeśli to błąd (zła osoba, ucięty lub za długi fragment), podaj poprawną wartość; jeśli jest dobrze, powtórz ją.')
+        lines.append(line)
     if examples:
         lines += ["", "Przykłady poprawionych wartości z podobnych dokumentów:"]
         for ex in examples:
-            lines.append(f'- pole "{ex["field"]}": fragment: «{ex["snippet"]}» -> poprawna wartość: {json.dumps(ex["value"], ensure_ascii=False)}')
+            lines.append(f'- pole "{ex["field"]}": fragment: «{ex["snippet"]}» -> poprawna wartość: {json.dumps(ex["value"], ensure_ascii=False)}'
+                         + (f' (uwaga człowieka: {ex["reason"]})' if ex.get("reason") else ""))
+    if hints:
+        lines += ["", "Wskazówki od człowieka, nauczone z wcześniejszych poprawek (stosuj je):"]
+        lines += [f'- pole "{h["field"]}": {h["hint"]}' for h in hints]
     lines += ["", "Dokument:", "\"\"\"", doc.text[:settings.LLM_MAX_CHARS], "\"\"\"", "",
               "Zwróć JSON o dokładnie tych kluczach: " + ", ".join(f'"{s.name}"' for s in specs) + "."]
     return "\n".join(lines)
@@ -149,23 +235,34 @@ def _in_text(value, text_norm: str) -> bool:
 
 
 def fill_missing(doc: PdfText, cls: DocClass, ex: Extraction, client=None,
-                 examples: list[dict] | None = None) -> list[str]:
+                 examples: list[dict] | None = None, hints: list[dict] | None = None,
+                 review: bool = False) -> list[str]:
     """Uzupełnia luki w `ex` przez LLM. Zwraca listę nazw pól wypełnionych przez LLM."""
     by_name = {f.name: f for f in ex.fields}
     specs = [s for s in cls.fields if needs_llm(s, by_name[s.name])]
+    current = {}
+    if review:                             # opcjonalnie: LLM sprawdza także to, co regex znalazł (i może poprawić)
+        for s in review_candidates(cls, by_name):
+            if s not in specs:
+                specs.append(s)
+                current[s.name] = by_name[s.name].value
     if not specs:
         return []
+    if examples is None:                   # poprawki człowieka oznaczone jako przykłady (pamięć aplikacji)
+        try:
+            from . import feedback
+            examples = feedback.examples_for(cls.name, [s.name for s in specs], doc.text)
+            hints = feedback.hints_for(cls.name, [s.name for s in specs]) if hints is None else hints
+        except Exception:
+            examples, hints = [], hints or []
     try:
         client = client or make_client()
-        resp = client.chat.completions.create(
-            model=settings.LLM_MODEL, temperature=0,
-            response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": SYSTEM_PROMPT},
-                      {"role": "user", "content": build_prompt(cls, specs, doc, examples)}])
-        data = parse_response(resp.choices[0].message.content or "")
-    except Exception as exc:               # brak serwera, timeout, zły JSON...
+        data = parse_response(chat_json(client, [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_prompt(cls, specs, doc, examples, hints, current)}]))
+    except Exception as exc:               # brak serwera, zły klucz, timeout, zły JSON...
         for s in specs:
-            by_name[s.name].warnings.append(f"LLM niedostępny: {type(exc).__name__}")
+            by_name[s.name].warnings.append(f"LLM niedostępny: {explain_error(exc)}")
         return []
 
     text_norm = " ".join(doc.text.split()).casefold()
@@ -203,6 +300,10 @@ def fill_missing(doc: PdfText, cls: DocClass, ex: Extraction, client=None,
         values = list(_flatten(value))
         if not values:
             continue
+        if s.name in current:
+            if _same_value(current[s.name], value):
+                continue                 # model potwierdził wartość z reguł
+            res.warnings.append(f"LLM poprawił wartość z reguł (było: {current[s.name]})")
         res.value, res.method, res.status = value, "llm", "ok"
         res.confidence = CONF_LLM_FOUND_IN_TEXT
         res.raw = " | ".join(str(v) for v in values)
@@ -242,10 +343,9 @@ def classify_with_llm(doc: PdfText, classes: list[DocClass], client=None) -> str
               f'Dokument:\n"""\n{doc.head(2)[:4000]}\n"""\n\nOdpowiedz JSON-em: {{"class": "<nazwa lub none>"}}')
     try:
         client = client or make_client()
-        resp = client.chat.completions.create(
-            model=settings.LLM_MODEL, temperature=0, response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
-        name = parse_response(resp.choices[0].message.content or "").get("class")
+        name = parse_response(chat_json(client, [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}])).get("class")
     except Exception:
         return None
     return name if name in {c.name for c in classes} else None

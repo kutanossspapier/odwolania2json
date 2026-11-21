@@ -110,6 +110,20 @@ th{color:var(--muted);font-weight:500;border-top:0}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:2px 10px;font:inherit;font-size:12.5px;cursor:pointer}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .group{padding:6px 14px;background:var(--bg);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);font-weight:600}
+
+.fixbtn{background:none;border:1px solid var(--line);border-radius:6px;color:var(--accent);font:inherit;font-size:11.5px;padding:0 7px;cursor:pointer}
+.fixbtn:hover{background:var(--accent);color:#fff}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(820px,94vw);max-height:92vh;padding:0}
+dialog::backdrop{background:rgba(10,14,22,.55)}
+.dlg-h{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card)}
+.dlg-b{padding:14px 18px 18px;overflow:auto;max-height:calc(92vh - 60px)}
+.dlg-b label{display:block;font-weight:600;margin:12px 0 4px}
+.dlg-b textarea,.dlg-b input[type=text]{width:100%;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.dlg-b .chk{font-weight:400;display:flex;gap:6px;align-items:center;margin:6px 0}
+.sel-text{user-select:text;max-height:200px}
+.prop{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.prop.good{border-color:var(--ok)} .prop.bad{border-color:var(--bad)}
+.find{padding:4px 0;font-size:13.5px}
 </style>
 </head>
 <body>
@@ -122,6 +136,12 @@ th{color:var(--muted);font-weight:500;border-top:0}
     <button data-view="wizard">Kreator nowej klasy</button>
   </nav>
   <span class="spacer"></span>
+  <label class="mode" id="revbox" title="LLM sprawdza także wartości znalezione przez regex (gdy pewność jest niska, są ostrzeżenia albo pole było już poprawiane) i może je poprawić. Poprawiona wartość dostaje znacznik LLM i ostrzeżenie z poprzednią wartością.">
+    <input type="checkbox" id="revtoggle"> LLM poprawia regex
+  </label>
+  <label class="mode" id="onlybox" title="Tryb testowy: wyniki regexów są pomijane i wszystkie pola wyciąga wyłącznie LLM. Pokazuje, ile potrafi sam model.">
+    <input type="checkbox" id="onlytoggle"> Tylko LLM
+  </label>
   <label class="mode" id="llmbox" title="LLM uzupełnia tylko pola, których regex nie znalazł">
     <input type="checkbox" id="llmtoggle"> Użyj LLM <span id="llmstate"></span>
   </label>
@@ -163,20 +183,24 @@ th{color:var(--muted);font-weight:500;border-top:0}
   <!-- ================= KLASY ================= -->
   <section id="view-classes" class="hidden"></section>
 
-  <section id="view-examples" class="hidden"><div class="soon"><h2>Baza przykładów</h2>
-    Tu pojawią się poprawki zapisane przez człowieka (z możliwością dodania ich jako przykładów dla LLM).
-    Ten moduł powstaje w kolejnym kroku.</div></section>
+  <section id="view-examples" class="hidden"></section>
   <section id="view-wizard" class="hidden"><div class="soon"><h2>Kreator nowej klasy</h2>
     Wgrasz 2–3 przykładowe PDF-y nowego typu, a LLM zaproponuje plik YAML do edycji i zatwierdzenia.
     Ten moduł powstaje w kolejnym kroku.</div></section>
 </main>
+
+<dialog id="fixdlg">
+  <div class="dlg-h"><b id="fx_title">Popraw pole</b><button class="btn ghost" id="fx_close">Zamknij</button></div>
+  <div class="dlg-b" id="fx_body"></div>
+</dialog>
+
 
 <script src="/vendor/pdf.min.js"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.min.js";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const state = { docs: [], cur: -1, pdf: null, renderId: 0, scale: 1, selected: null, lowConf: 0.75, filter: "all", checks: [], llm: false };
+const state = { docs: [], cur: -1, pdf: null, renderId: 0, scale: 1, selected: null, lowConf: 0.75, filter: "all", checks: [], llm: false, llmOnly: false, review: false };
 const METHOD = { regex: ["Reguła","acc"], rules: ["Reguła","acc"], lookup: ["Słownik","acc"], llm: ["LLM","warn"] };
 
 /* ---------- nawigacja ---------- */
@@ -191,11 +215,15 @@ $("#nav").addEventListener("click", e => {
 fetch("/api/status").then(r => r.json()).then(s => {
   state.lowConf = s.low_confidence; state.llmReachable = s.llm_reachable;
   const box = $("#llmbox"), tg = $("#llmtoggle");
-  $("#llmstate").innerHTML = `<span class="dot ${s.llm_reachable ? "on" : "offl"}"></span>${esc(s.llm_model)}`;
-  if (!s.llm_reachable) { tg.disabled = true; box.classList.add("off"); box.title = "Brak połączenia z serwerem LLM (" + s.llm_url + "). Uruchom Ollamę i odśwież stronę."; }
-  else { tg.checked = state.llm = s.llm_enabled; }
+  $("#llmstate").innerHTML = `<span class="dot ${s.llm_reachable ? "on" : "offl"}"></span>${esc(s.llm_label)} · ${esc(s.llm_model)}`;
+  const info = `${s.llm_label}, region: ${s.llm_region}\nadres: ${s.llm_url}\nmodel: ${s.llm_model}`;
+  if (!s.llm_reachable) { tg.disabled = true; $("#onlytoggle").disabled = true; $("#revtoggle").disabled = true; $("#revbox").classList.add("off"); $("#onlybox").classList.add("off"); box.classList.add("off"); box.title = info + "\n\nBRAK POŁĄCZENIA z serwerem LLM. Sprawdź klucz API i adres w pliku .env (test: python -m odw.check_llm), albo uruchom Ollamę. Aplikacja działa nadal na samych regexach."; }
+  else { tg.checked = state.llm = s.llm_enabled; box.title = info + "\n\nLLM uzupełnia tylko pola, których regex nie znalazł."; }
 });
-$("#llmtoggle").addEventListener("change", e => { state.llm = e.target.checked; busy(state.llm ? "Nowe dokumenty będą analizowane z LLM." : "Nowe dokumenty: tylko regex."); });
+$("#llmtoggle").addEventListener("change", e => { state.llm = e.target.checked; if (!state.llm) { state.llmOnly = false; state.review = false; $("#onlytoggle").checked = false; $("#revtoggle").checked = false; } busy(state.llm ? "Nowe dokumenty będą analizowane z LLM." : "Nowe dokumenty: tylko regex."); });
+$("#onlytoggle").addEventListener("change", e => { state.llmOnly = e.target.checked; if (state.llmOnly) { state.llm = true; $("#llmtoggle").checked = true; } busy(state.llmOnly ? "Tryb „Tylko LLM”: regexy pominięte, pola wyciąga wyłącznie model." : "Tryb normalny: regex + LLM uzupełnia luki."); });
+$("#revtoggle").addEventListener("change", e => { state.review = e.target.checked; if (state.review) { state.llm = true; $("#llmtoggle").checked = true; } busy(state.review ? "LLM będzie też weryfikował i poprawiał wartości z regexa." : "LLM tylko uzupełnia luki."); });
+const qs = llm => "llm=" + llm + "&llm_only=" + (llm && state.llmOnly) + "&review=" + (llm && state.review);
 fetch("/api/samples").then(r => r.json()).then(list => {
   const sel = $("#samples");
   const sets = document.createElement("optgroup"); sets.label = "Komplety (odwołanie + pełnomocnictwo + przelew)";
@@ -219,7 +247,7 @@ function busy(t){ $("#busy").textContent = t || ""; }
 async function addSample(f){
   busy("analizuję " + f.name + "…");
   try {
-    const r = await (await fetch("/api/process-sample?llm=" + state.llm + "&id=" + encodeURIComponent(f.id))).json();
+    const r = await (await fetch("/api/process-sample?" + qs(state.llm) + "&id=" + encodeURIComponent(f.id))).json();
     pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true, sampleId: f.id });
   } catch(e){ busy("Błąd: " + e); return; }
   busy("");
@@ -228,7 +256,7 @@ async function addFile(file){
   busy("analizuję " + file.name + "…");
   const fd = new FormData(); fd.append("file", file);
   try {
-    const resp = await fetch("/api/process?llm=" + state.llm, { method: "POST", body: fd });
+    const resp = await fetch("/api/process?" + qs(state.llm), { method: "POST", body: fd });
     if (!resp.ok) throw new Error((await resp.json()).detail);
     pushDoc({ name: file.name, url: URL.createObjectURL(file), result: await resp.json(), file });
   } catch(e){ busy("Błąd: " + (e.message||e)); return; }
@@ -237,8 +265,8 @@ async function addFile(file){
 async function reprocess(i, llm){
   const d = state.docs[i]; busy((llm ? "LLM analizuje " : "Analizuję ") + d.name + "… (na procesorze może to potrwać do kilku minut)");
   try {
-    if (d.isSample) d.result = await (await fetch("/api/process-sample?llm=" + llm + "&id=" + encodeURIComponent(d.sampleId))).json();
-    else { const fd = new FormData(); fd.append("file", d.file); const r = await fetch("/api/process?llm=" + llm, { method: "POST", body: fd }); if (!r.ok) throw new Error((await r.json()).detail); d.result = await r.json(); }
+    if (d.isSample) d.result = await (await fetch("/api/process-sample?" + qs(llm) + "&id=" + encodeURIComponent(d.sampleId))).json();
+    else { const fd = new FormData(); fd.append("file", d.file); const r = await fetch("/api/process?" + qs(llm), { method: "POST", body: fd }); if (!r.ok) throw new Error((await r.json()).detail); d.result = await r.json(); }
   } catch(e){ busy("Błąd: " + (e.message || e)); return; }
   busy(""); state.selected = null; renderDocs(); renderFields(d); renderSummary(); refreshChecks();
 }
@@ -347,7 +375,7 @@ function renderFields(d){
     const ok = (d.truth || null) === c.class_name;
     h += `<div class="meta" style="margin-top:4px">Oczekiwano w danych UZP: <b>${d.truth ? esc(c.titles[d.truth] || d.truth) : "pusty wynik (negatyw)"}</b> ${ok ? '<span class="yes">✓ zgodne</span>' : '<span style="color:var(--bad);font-weight:700">✗ niezgodne</span>'}</div>`;
   }
-  h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms >= 2000 ? (r.timing_ms/1000).toFixed(1) + " s" : r.timing_ms + " ms"}${r.used_ocr ? " · użyto OCR" : ""}${r.used_llm ? " · LLM uzupełnił pól: " + r.llm_fields.length : " · tylko regex"}</div>`;
+  h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms >= 2000 ? (r.timing_ms/1000).toFixed(1) + " s" : r.timing_ms + " ms"}${r.used_ocr ? " · użyto OCR" : ""}${r.llm_only ? " · TRYB: tylko LLM, pól od LLM: " + r.llm_fields.length : r.used_llm ? " · LLM uzupełnił pól: " + r.llm_fields.length : " · tylko regex"}</div>`;
   if (c.class_name) h += `<div style="margin-top:8px"><button class="btn ghost" id="rellm" ${state.llmReachable ? "" : "disabled title='Brak połączenia z serwerem LLM'"}>${r.used_llm ? "Przetwórz bez LLM" : "Przetwórz ten dokument z LLM"}</button></div>`;
   h += `</div>`;
   const cat = f => f.status === "brak" || f.status === "llm" ? "missing" : (f.confidence < state.lowConf ? "check" : "found");
@@ -364,7 +392,7 @@ function renderFields(d){
     h += `<div class="field ${low ? "lowc" : ""} ${state.selected === i ? "on" : ""}" data-i="${i}" title="${esc(f.description)}">
       <div class="name">${esc(f.name.replaceAll("_", " "))} <code style="color:var(--muted)">${esc(f.path)}</code></div>
       <div class="val ${val === null ? "none" : ""}">${val === null ? (f.status === "llm" ? "oczekuje na LLM" : "— brak —") : esc(val)}</div>
-      <div class="side">${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
+      <div class="side"><button class="fixbtn" data-fix="${i}" title="Podaj poprawną wartość i dowiedz się, co zmienić w konfiguracji">Popraw</button>${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
       ${f.warnings.length ? `<div class="warnline">⚠ ${f.warnings.map(esc).join("; ")}</div>` : ""}</div>`;
   });
   h += `<details class="box"><summary>Wynikowy JSON</summary>
@@ -385,6 +413,7 @@ function scoresHtml(c){
     <table>${c.details[n].map(x => `<tr><td class="${x.matched ? "yes" : "no"}">${x.matched ? "✓" : "–"}</td><td><code>${esc(x.pattern)}</code></td><td>${x.weight}</td><td>${x.snippet ? `<span class="snip">${esc(x.snippet)}</span>` : ""}</td></tr>`).join("")}</table></details>`).join("");
 }
 $("#fields").addEventListener("click", e => {
+  const fx = e.target.closest(".fixbtn"); if (fx) { openFix(+fx.dataset.fix); return; }
   const chip = e.target.closest(".chip");
   if (chip) { state.filter = chip.dataset.f; renderFields(state.docs[state.cur]); const f = currentField(); if (f) highlight(f); return; }
   const el = e.target.closest(".field"); if (!el) return;
@@ -432,6 +461,118 @@ async function loadClasses(){
     ${c.fields.map(f => `<tr><td>${esc(f.name)}</td><td><code>${esc(f.path)}</code></td><td><span class="tag ${(METHOD[f.method]||["","" ])[1]}">${(METHOD[f.method]||[f.method])[0]}</span></td><td>${esc(f.description)}</td></tr>`).join("")}</table></div>`).join("")
     + `<p class="meta">Nowy typ dokumentu = nowy plik YAML w <code>config/classes/</code>, bez zmian w kodzie.</p>`;
 }
+
+/* ---------- ręczna korekta pola (Popraw) ---------- */
+let fixCtx = null;
+function openFix(i){
+  const d = state.docs[state.cur], f = d.result.fields[i], c = d.result.classification;
+  if (!c.class_name) return;
+  fixCtx = { d, f, c };
+  const multi = Array.isArray(f.value) && f.path.includes("[]");
+  const text = d.result.text.map(t => `──────── strona ${t.page} ────────\n${t.text}`).join("\n\n");
+  $("#fx_title").textContent = "Popraw pole: " + f.name.replaceAll("_", " ");
+  $("#fx_body").innerHTML = `
+    <div class="meta">${esc(c.title)} · <code>${esc(f.path)}</code> · plik <code>config/classes/${esc(c.yaml_file)}</code></div>
+    <div style="margin-top:6px">Obecna wartość: <b>${fmt(f.value) === null ? "— brak —" : esc(fmt(f.value))}</b></div>
+    <label for="fx_val">Poprawna wartość <span class="meta">(dokładnie tak, jak w dokumencie; dla listy po jednej w linii)</span></label>
+    <textarea id="fx_val" rows="2"></textarea>
+    <details open><summary class="meta" style="cursor:pointer">Tekst dokumentu: zaznacz myszką miejsce z poprawną wartością (wpisze się samo)</summary>
+      <pre class="sel-text" id="fx_text">${esc(text)}</pre></details>
+    <label for="fx_why">Dlaczego to błąd? <span class="meta">(opcjonalnie, np. „pełnomocnik stoi po słowach Pełnomocnik odwołującego”)</span></label>
+    <textarea id="fx_why" rows="2"></textarea>
+    <label class="chk"><input type="checkbox" id="fx_llm" ${state.llmReachable ? "" : "disabled"}> Poproś LLM o propozycję wzorca (poza podpowiedzią bez LLM) ${state.llmReachable ? "" : "<span class=meta>(brak połączenia z LLM)</span>"}</label>
+    <label class="chk"><input type="checkbox" id="fx_ex" checked> Dodaj jako przykład dla LLM (do bazy przykładów)</label>
+    <div style="margin-top:10px"><button class="btn" id="fx_go">Analizuj</button> <span class="meta" id="fx_busy"></span></div>
+    <div id="fx_res"></div>`;
+  $("#fx_text").addEventListener("mouseup", () => {
+    const t = String(window.getSelection()).trim(); if (!t) return;
+    $("#fx_val").value = multi ? t : t.replace(/\s+/g, " ");
+  });
+  $("#fx_go").onclick = sendFix;
+  $("#fixdlg").showModal();
+}
+$("#fx_close").onclick = () => $("#fixdlg").close();
+async function sendFix(){
+  const { d, f, c } = fixCtx, val = $("#fx_val").value.trim();
+  if (!val) { $("#fx_busy").textContent = "Wpisz albo zaznacz poprawną wartość."; return; }
+  $("#fx_busy").textContent = $("#fx_llm").checked ? "analizuję (LLM może potrwać)…" : "analizuję…"; $("#fx_go").disabled = true;
+  try {
+    const resp = await fetch("/api/feedback", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({
+      class_name: c.class_name, field: f.name, expected: val, reason: $("#fx_why").value, doc_name: d.name,
+      use_llm: $("#fx_llm").checked, as_example: $("#fx_ex").checked,
+      pages: d.result.text.map(t => ({ number: t.page, text: t.text })) }) });
+    const r = await resp.json(); if (!resp.ok) throw new Error(r.detail);
+    $("#fx_res").innerHTML = renderFix(r); $("#fx_busy").textContent = r.id ? "gotowe (zapisano w bazie poprawek #" + r.id + ")" : "gotowe (pole już zwraca tę wartość, nic nie zapisano)";
+    $("#fx_copy")?.addEventListener("click", () => navigator.clipboard.writeText(r.log));
+    document.querySelectorAll("#fx_res [data-learn]").forEach(b => b.onclick = () => applyLearn(b));
+    loadCorrections();
+  } catch(e){ $("#fx_busy").textContent = "Błąd: " + (e.message || e); }
+  $("#fx_go").disabled = false;
+}
+function renderFix(r){
+  const pat = x => typeof x === "string" ? esc(x) : esc(`regex: ${x.regex}\n  split: ${x.split}\n  item: ${x.item}`);
+  let h = `<h3 style="margin:16px 0 4px">Dlaczego nie działa</h3>`;
+  h += r.findings.length ? r.findings.map(x => `<div class="find">• ${esc(x)}</div>`).join("") : `<div class="find meta">brak dodatkowych ustaleń</div>`;
+  if (r.patterns.length) h += `<table><tr><th>#</th><th>istniejący wzorzec</th><th>wynik</th></tr>` + r.patterns.map(p =>
+    `<tr><td>${p.index}</td><td><code>${esc(p.pattern)}</code></td><td>${esc(p.status)}${p.values.length ? ": <b>" + esc(p.values.join(", ")) + "</b>" : ""}</td></tr>`).join("") + `</table>`;
+  h += `<h3 style="margin:16px 0 4px">Propozycje poprawki</h3>`;
+  h += r.proposals.map((p, pi) => {
+    const rg = p.regression, ok = r.id && p.verified && (p.patterns || []).length, can = ok && (!rg || !rg.available || rg.ok), forced = ok && !can;
+    return `<div class="prop ${p.verified ? "good" : "bad"}"><b>${esc(p.source)}</b> ${p.verified ? '<span class="tag ok">sprawdzony na tym dokumencie</span>' : '<span class="tag bad">nie zadziałał</span>'}
+      ${(p.patterns || []).map(x => `<pre style="margin:6px 0">${pat(x)}</pre>`).join("")}
+      ${p.explanation ? `<div class="meta">${esc(p.explanation)}</div>` : ""}${p.error ? `<div class="meta" style="color:var(--bad)">${esc(p.error)}</div>` : ""}
+      ${p.verified ? `<div class="meta">Pole zwraca teraz: <b>${esc((p.values || []).join(", "))}</b></div>` : ""}
+      ${ok ? `<div class="deploy" style="margin-top:8px"><button class="btn" data-learn="${r.id}:${pi}" ${forced ? 'data-force="1" style="background:var(--bad)"' : ""}>Wdróż</button> <span class="meta">${forced ? "pogarsza wyniki na zbiorze treningowym - zapytam o potwierdzenie; " : ""}zapisze wzorzec w config/learned/patterns.yaml, zadziała od razu</span></div>` : ""}
+      ${rg ? (rg.available ? `<div class="meta">Zbiór treningowy (${rg.docs} dok.): F1 pola ${rg.before.f1} → ${rg.after.f1} ${rg.ok ? '<span class="yes">bez regresji</span>' : '<b style="color:var(--bad)">UWAGA: pogarsza wyniki</b>'}</div>` : `<div class="meta">${esc(rg.note)}</div>`) : ""}</div>`;
+  }).join("");
+  h += `<h3 style="margin:16px 0 4px">Log: co poprawić w pliku konfiguracyjnym <button class="btn ghost" id="fx_copy">Kopiuj</button></h3><pre>${esc(r.log)}</pre>`;
+  return h;
+}
+
+/* ---------- wdrożenie poprawki do pamięci ---------- */
+async function applyLearn(btn){
+  const [id, proposal] = btn.dataset.learn.split(":").map(Number), force = !!btn.dataset.force;
+  if (force && !confirm("Ten wzorzec POGARSZA wyniki na zbiorze treningowym. Wdrożyć mimo to?")) return;
+  btn.disabled = true; btn.textContent = "wdrażam…";
+  try {
+    const resp = await fetch("/api/feedback/apply", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id, proposal, force }) });
+    const r = await resp.json(); if (!resp.ok) throw new Error(r.detail);
+    const done = `<span class="tag ok" style="font-size:14px;padding:3px 12px">${r.applied ? "✓ Wdrożono" : "✓ Już działa (nic do wdrożenia)"}</span>`;
+    (btn.closest(".deploy") || btn.parentElement).innerHTML = done + ` <span class="meta">${esc(r.message)}</span>`;
+    busy(r.message);
+    await loadCorrections();
+    if (r.applied && state.docs[state.cur]) await reprocess(state.cur, state.docs[state.cur].result.used_llm);   // okno zostaje otwarte
+  } catch(e){ btn.disabled = false; btn.textContent = "Wdróż"; alert("Nie wdrożono: " + (e.message || e)); }
+}
+$("#view-examples").addEventListener("click", async e => {
+  const l = e.target.closest("[data-learn]"); if (l) return applyLearn(l);
+  const dl = e.target.closest("[data-del]");
+  if (dl) { if (!confirm("Usunąć tę poprawkę z bazy? (wdrożony wzorzec zostaje - cofniesz go w tabeli powyżej)")) return;
+    await fetch("/api/corrections/delete", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id: +dl.dataset.del }) }); return loadCorrections(); }
+  const u = e.target.closest("[data-unlearn]"); if (!u) return;
+  if (!confirm("Cofnąć ten nauczony wzorzec?")) return;
+  const [class_name, field, index] = u.dataset.unlearn.split("|");
+  await fetch("/api/learned/remove", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ class_name, field, index: +index }) });
+  loadCorrections();
+});
+
+/* ---------- baza poprawek ---------- */
+async function loadCorrections(){
+  let list = [], learned = []; try { list = await (await fetch("/api/corrections")).json(); learned = await (await fetch("/api/learned")).json(); } catch(e){}
+  document.querySelector('[data-view="examples"] .count').textContent = list.length;
+  const lr = learned.length ? learned.map(x => `<tr><td>${esc(x.class_name)}.${esc(x.field)}</td><td><code>${esc(typeof x.pattern === "string" ? x.pattern : JSON.stringify(x.pattern))}</code></td><td>${esc(x.source)}<br><span class="meta">${esc(x.added)}</span></td><td><button class="fixbtn" data-unlearn="${esc(x.class_name)}|${esc(x.field)}|${x.index}">Cofnij</button></td></tr>`).join("")
+    : `<tr><td colspan="4" class="meta">Jeszcze nic. Po poprawce kliknij „Wdróż”, a wzorzec trafi tutaj.</td></tr>`;
+  $("#view-examples").innerHTML = `<div class="cls"><h3 style="margin-top:0">Czego się nauczyła aplikacja <span class="meta">(config/learned/patterns.yaml, działa bez LLM)</span></h3>
+    <table><tr><th>pole</th><th>wzorzec</th><th>źródło</th><th></th></tr>${lr}</table></div>
+    <h2 style="margin:6px 0 10px">Poprawki zapisane przez człowieka</h2>`
+    + (list.length ? list.map(x => `<div class="cls"><b>${esc(x.class_name)}.${esc(x.field)}</b> <span class="meta">· ${esc(x.ts)} · ${esc(x.doc_name)}${x.as_example ? " · przykład dla LLM" : ""}</span>
+      <div class="meta">było: ${esc(JSON.stringify(x.got))} → ma być: <b>${esc(JSON.stringify(x.expected))}</b>${x.reason ? " · " + esc(x.reason) : ""}</div>
+      ${x.applied ? '<span class="tag ok" style="font-size:13px">✓ Wdrożono</span>' : (x.learnable.length ? `<button class="btn" data-learn="${x.id}:${x.learnable[0]}">Wdróż</button>` : (x.forceable.length ? `<button class="btn" style="background:var(--bad)" data-learn="${x.id}:${x.forceable[0]}" data-force="1" title="pogarsza wyniki na zbiorze treningowym">Wdróż</button>` : ""))}
+      <button class="fixbtn" style="float:right" data-del="${x.id}">Usuń</button>
+      <details><summary class="meta">log poprawki konfiguracji</summary><pre>${esc(x.log)}</pre></details></div>`).join("")
+      : '<div class="soon">Brak poprawek. Przy dowolnym polu kliknij „Popraw”, podaj poprawną wartość, a aplikacja wskaże, co zmienić w konfiguracji.</div>');
+}
+loadCorrections();
 </script>
 </body>
 </html>

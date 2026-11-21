@@ -6,3 +6,7 @@ ACCOUNT: '(?:PL\s?)?\d{2}(?:\s?\d{4}){6}'
 PERSON: '[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż’''-]+ [A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż’''-]+'
 ROLE: '(?:Prezes|Wiceprezes|Prokurent|Członek|Wspólnik|Dyrektor|Likwidator|Komplementariusz|Zarząd|Pełnomocnik)'
 EMAIL: '[\w.+-]+@[\w-]+(?:\.[\w-]+)+'
+# Tytuł przed imieniem i nazwiskiem pełnomocnika (wielkość liter bez znaczenia, nawet w polach case_sensitive)
+TITLE: '(?i:adw\.|adwokat\w*|r\.\s*pr\.|radc\w+\s+prawn\w+|mec\.|mecenas\w*)'
+# Imię i nazwisko: 2-3 słowa od wielkiej litery w jednej linii (także nazwiska dwuczłonowe i WIELKIMI). Używaj z case_sensitive: true.
+NAME: '[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ’''-]+(?:[ \t]+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ’''-]+){1,2}'

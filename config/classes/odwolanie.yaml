@@ -186,6 +186,7 @@ fields:
     default: 0
     patterns:
       - 'reprezentowan\w+\s+przez'
+      - '<<TITLE>>\s+(?-i:<<NAME>>)'
 
   - name: pelnomocnik_imie_nazwisko
     path: Odwolujacy[0].pelnomocnik.imie_nazwisko
@@ -194,7 +195,13 @@ fields:
     description: Imię i nazwisko (pierwszego) pełnomocnika Odwołującego.
     normalize: [ws]
     patterns:
-      - 'reprezentowan\w+\s+przez\s*:\s*(?:adw\.|r\.\s*pr\.|radc\w+\s+prawn\w+|adwokat\w*)?\s*([^,\n]+)'
+      # "reprezentowana przez: adw. A B, r. pr. C D" - lista po przecinkach / "oraz" / "i" / w kolejnych liniach;
+      # każdy element może mieć tytuł (adw., r. pr., radca prawny, mec.) i dopisek w nawiasie
+      - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^\n]+(?:\n\s*<<TITLE>>[^\n]+)*)'
+        split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
+        item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
+      # pierwszy pełnomocnik wskazany tytułem (także gdy brakuje słowa "reprezentowana")
+      - '<<TITLE>>\s+((?-i:<<NAME>>))'
 
   - name: pelnomocnik_nazwa
     path: Odwolujacy[0].pelnomocnik.nazwa

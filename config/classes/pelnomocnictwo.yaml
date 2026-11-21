@@ -54,6 +54,8 @@ fields:
     description: Pełna nazwa mocodawcy (osoby prawnej).
     normalize: [ws]
     patterns:
+      # "Mocodawca: NAZWA, ul. ..." (etykieta nie należy do nazwy)
+      - '^Mocodawc\w*\s*:\s*([^\n,]{3,120}?),\s*(?:ul\.|al\.|pl\.|os\.)'
       # konsorcjum: blok zaczyna się od nazwy (może się zawijać), po niej ", ul. ..."
       - '\A\s*(?!PEŁNOMOCNICTWO)([^,]{3,120}?),\s*(?:ul\.|al\.|pl\.|os\.)'
       # osoba fizyczna: "... prowadzący działalność gospodarczą pod firmą NAZWA, ul. ..."
@@ -141,9 +143,15 @@ fields:
     description: Imię i nazwisko każdego pełnomocnika w mianowniku.
     normalize: [ws]
     patterns:
-      - '(?:adw\.|r\.\s*pr\.|radc\w+\s+prawn\w+|adwokat\w*)\s+([^(),]+?)\s*(?:,\s*PESEL\s*\d{11}\s*)?(?:\(|,\s*)nr\s+wpisu'
+      - '<<TITLE>>\s+([^(),]+?)\s*(?:,\s*PESEL\s*\d{11}\s*)?(?:\(|,\s*)nr\s+wpisu'
       # układ dwukolumnowy: "... r. pr. Imię Nazwisko" / "ul. ... nr wpisu WA ..." lub "NIP ... nr wpisu ..."
       - '(?:adw\.|r\.\s*pr\.)\s+([^\n(),]+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.|NIP\s*\d|KRS\s*\d)[^\n]*nr\s+wpisu'
+      # lista po przecinkach bez numerów wpisu: "reprezentowana przez: adw. A B, r. pr. C D"
+      - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^\n]+(?:\n\s*<<TITLE>>[^\n]+)*)'
+        split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
+        item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
+      # ostatnia deska ratunku: tytuł + imię i nazwisko gdziekolwiek
+      - '<<TITLE>>\s+((?-i:<<NAME>>))'
 
   - name: pelnomocnik_pesel
     llm_fill: false      # null jest tu częstą, poprawną odpowiedzią

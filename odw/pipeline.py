@@ -38,7 +38,7 @@ def blank_extraction(cls: DocClass, ex: Extraction) -> None:
 
 def process(path: str | Path, classes: list[DocClass] | None = None,
             max_pages: int | None = None, use_llm: bool | None = None, client=None,
-            llm_only: bool = False) -> Result:
+            llm_only: bool = False, llm_review: bool = False) -> Result:
     classes = classes or load_classes()
     use_llm = settings.LLM_ENABLED if use_llm is None else use_llm
     doc = extract_pdf(path, max_pages=max_pages)
@@ -58,5 +58,5 @@ def process(path: str | Path, classes: list[DocClass] | None = None,
             blank_extraction(cls, ex)
             use_llm = True
         if use_llm:
-            filled = llm.fill_missing(doc, cls, ex, client)
+            filled = llm.fill_missing(doc, cls, ex, client, review=llm_review)
     return Result(doc, cl, ex, filled)

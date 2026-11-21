@@ -118,6 +118,7 @@ def main(argv=None):
     ap.add_argument("--save", default="reports/ostatni_eval.json")
     ap.add_argument("--llm", action="store_true",
                     help="włącz LLM jako uzupełnienie (wymaga działającego serwera z .env)")
+    ap.add_argument("--review", action="store_true", help="LLM weryfikuje też wartości z regexa (wymaga --llm)")
     ap.add_argument("--llm-only", action="store_true",
                     help="pomiar samego LLM: wyłącza wyniki regexów (wolne - użyj z --sets)")
     ap.add_argument("--sets", type=int, default=0,
@@ -145,7 +146,7 @@ def main(argv=None):
         if args.only and cls != args.only:
             continue
         res = process(pdf, classes, max_pages=None if cls else 3, use_llm=args.llm,
-                      llm_only=args.llm_only)
+                      llm_only=args.llm_only, llm_review=args.review)
         print(f"  [{cls or 'negatyw':14s}] {pdf.parent.name}/{pdf.name}  LLM: {len(res.llm_fields)} pól",
               file=sys.stderr, flush=True)
         llm_filled += len(res.llm_fields)

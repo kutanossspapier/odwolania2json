@@ -151,6 +151,29 @@ def _validate(spec: FieldSpec, value, res: FieldResult) -> None:
                 res.warnings.append(msg)
 
 
+def _raw_values(p, m):
+    """Surowe wartości z jednego trafienia wzorca: (pozycja, tekst).
+    Wzorzec z `split` dzieli przechwycony tekst na elementy (np. "adw. A, r. pr. B" -> A, B);
+    `item` odrzuca elementy, które nie wyglądają na szukaną wartość."""
+    for g in (p.groups or [p.group]):
+        has = (m.lastindex or 0) >= g
+        raw, start = (m.group(g), m.start(g)) if has else (m.group(0), m.start())
+        if raw is None:
+            continue
+        if not p.split:
+            yield start, raw
+            continue
+        for part in p.split.split(raw):
+            if not part or not part.strip():
+                continue
+            if p.item:
+                it = p.item.search(part)
+                if not it:
+                    continue
+                part = it.group(1) if it.lastindex else it.group(0)
+            yield start + max(raw.find(part), 0), part.strip()
+
+
 def _matches(spec: FieldSpec, text: str):
     """Pierwszy wzorzec, który zadziałał, zwraca [(pozycja, raw, wartość, indeks_wzorca)]."""
     for pi, p in enumerate(spec.patterns):
@@ -158,14 +181,10 @@ def _matches(spec: FieldSpec, text: str):
         for m in (p.regex.finditer(text) if spec.multiple else [p.regex.search(text)]):
             if not m:
                 continue
-            groups = p.groups or [p.group]
-            for g in groups:
-                raw = m.group(g) if (m.lastindex or 0) >= g else m.group(0)
-                if raw is None:
-                    continue
+            for pos, raw in _raw_values(p, m):
                 v = raw if spec.if_found is not None else _finish_value(spec, raw)
                 if v not in (None, ""):
-                    found.append((m.start(g) if (m.lastindex or 0) >= g else m.start(), raw, v, pi))
+                    found.append((pos, raw, v, pi))
         if found:
             return found
     return []
@@ -176,13 +195,10 @@ def _matches_multi(spec: FieldSpec, text: str):
     found = []
     for pi, p in enumerate(spec.patterns):
         for m in p.regex.finditer(text):
-            for g in (p.groups or [p.group]):
-                if (m.lastindex or 0) < g:
-                    continue
-                raw = m.group(g)
-                v = _finish_value(spec, raw) if raw is not None else None
+            for pos, raw in _raw_values(p, m):
+                v = _finish_value(spec, raw)
                 if v not in (None, "") and all(v != f[2] for f in found):
-                    found.append((m.start(g), raw, v, pi))
+                    found.append((pos, raw, v, pi))
     return sorted(found)
 
 

@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import settings
+from . import feedback, settings
 from .classes import load_classes
 from .classify import HEAD_PAGES
 from .crosscheck import run_checks
@@ -27,19 +27,29 @@ LOW_CONFIDENCE = 0.75
 
 
 def _llm_reachable() -> bool:
-    """Czy serwer LLM (np. Ollama) odpowiada? Szybki test GET /models."""
+    """Czy serwer LLM odpowiada? Szybki test GET /models (z kluczem API, jeśli jest).
+
+    Odpowiedź 401/403 oznacza, że serwer żyje, ale klucz jest zły - to też zgłaszamy jako
+    niedostępny, bo aplikacja nie mogłaby z niego skorzystać.
+    """
+    import urllib.error
     import urllib.request
+    req = urllib.request.Request(settings.LLM_BASE_URL.rstrip("/") + "/models",
+                                 headers={"Authorization": f"Bearer {settings.LLM_API_KEY}"})
     try:
-        with urllib.request.urlopen(settings.LLM_BASE_URL.rstrip("/") + "/models", timeout=1.5):
+        with urllib.request.urlopen(req, timeout=3):
             return True
+    except urllib.error.HTTPError as e:
+        return e.code not in (401, 403)      # np. 404 = brak /models, ale serwer działa
     except Exception:
         return False
 
 
-def _result_payload(path: Path, display_name: str, llm: bool = False) -> dict:
+def _result_payload(path: Path, display_name: str, llm: bool = False, llm_only: bool = False, review: bool = False) -> dict:
     t0 = time.perf_counter()
     classes = load_classes()
-    res = process(path, classes, use_llm=llm)
+    llm = llm or llm_only
+    res = process(path, classes, use_llm=llm, llm_only=llm_only, llm_review=review and llm)
     ms = round((time.perf_counter() - t0) * 1000)
     cl = res.classification
     cls = next((c for c in classes if c.name == cl.class_name), None)
@@ -63,9 +73,11 @@ def _result_payload(path: Path, display_name: str, llm: bool = False) -> dict:
         "fields": fields,
         "group_labels": (cls.raw.get("group_labels") or {}) if cls else {},
         "used_llm": llm,
+        "llm_only": llm_only,
+        "llm_review": review and llm,
         "json": res.json,
         "llm_fields": res.llm_fields,
-        "text": [{"page": p.number, "text": p.text[:6000]} for p in res.doc.pages[:5]],
+        "text": [{"page": p.number, "text": p.text} for p in res.doc.pages],
         "timing_ms": ms,
     }
 
@@ -75,6 +87,8 @@ def api_status():
     reachable = _llm_reachable()
     return {"llm_enabled": settings.LLM_ENABLED, "llm_model": settings.LLM_MODEL,
             "llm_reachable": reachable, "llm_url": settings.LLM_BASE_URL,
+            "llm_provider": settings.LLM_PROVIDER, "llm_label": settings.LLM_PROVIDER_LABEL,
+            "llm_region": settings.LLM_REGION,
             "low_confidence": LOW_CONFIDENCE}
 
 
@@ -115,19 +129,75 @@ def api_sample_pdf(id: str):
 
 
 @app.get("/api/process-sample")
-def api_process_sample(id: str, llm: bool = False):
-    return _result_payload(_sample_path(id), id.split("/")[-1], llm)
+def api_process_sample(id: str, llm: bool = False, llm_only: bool = False, review: bool = False):
+    return _result_payload(_sample_path(id), id.split("/")[-1], llm, llm_only, review)
 
 
 @app.post("/api/process")
-async def api_process(file: UploadFile = File(...), llm: bool = False):
+async def api_process(file: UploadFile = File(...), llm: bool = False, llm_only: bool = False, review: bool = False):
     data = await file.read()
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "To nie wygląda na plik PDF")
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "upload.pdf"
         p.write_bytes(data)
-        return _result_payload(p, file.filename or "plik.pdf", llm)
+        return _result_payload(p, file.filename or "plik.pdf", llm, llm_only, review)
+
+
+@app.post("/api/feedback")
+def api_feedback(payload: dict = Body(...)):
+    """Ręczna korekta pola: diagnoza + propozycja poprawki YAML (bez LLM, a opcjonalnie z LLM)."""
+    try:
+        client = None
+        use_llm = bool(payload.get("use_llm"))
+        if use_llm:
+            from . import llm
+            client = llm.make_client()
+        diag = feedback.diagnose(payload["class_name"], payload["field"], payload.get("pages") or [],
+                                 payload.get("expected", ""), payload.get("reason", ""), use_llm, client)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    text = "\n".join(p.get("text", "") for p in payload.get("pages") or [])
+    diag["id"] = None if diag["already_ok"] else feedback.save_correction(diag, payload.get("doc_name", ""), text, bool(payload.get("as_example")))
+    return diag
+
+
+@app.post("/api/feedback/apply")
+def api_feedback_apply(payload: dict = Body(...)):
+    """Wdraża zweryfikowany wzorzec z poprawki do pamięci (config/learned/patterns.yaml)."""
+    try:
+        return feedback.apply_correction(int(payload["id"]), int(payload.get("proposal", 0)), bool(payload.get("force")))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/corrections/delete")
+def api_corrections_delete(payload: dict = Body(...)):
+    try:
+        feedback.delete_correction(int(payload["id"]))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.get("/api/learned")
+def api_learned():
+    from . import learned
+    return learned.listing()
+
+
+@app.post("/api/learned/remove")
+def api_learned_remove(payload: dict = Body(...)):
+    try:
+        feedback.revoke(payload["class_name"], payload["field"], int(payload["index"]))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.get("/api/corrections")
+def api_corrections():
+    return feedback.list_corrections()
 
 
 @app.post("/api/crosscheck")
@@ -136,4 +206,13 @@ def api_crosscheck(docs: list[dict] = Body(...)):
     return run_checks(docs)
 
 
-app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
+class FreshStaticFiles(StaticFiles):
+    """Strona zawsze świeża: przeglądarka nie trzyma starej wersji UI po aktualizacji aplikacji."""
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        if not path.startswith("vendor/"):
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
+app.mount("/", FreshStaticFiles(directory=WEB, html=True), name="web")

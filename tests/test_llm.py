@@ -82,6 +82,12 @@ def test_llm_values_are_normalized_like_regex_values():
     assert ex.json["przelew_bankowy"]["z_rachunku"] == "43046337661291756811869204"   # bez "PL" i spacji
 
 
+def test_clean_desc_keeps_parentheses_balanced():
+    assert llm._clean_desc("Kwota przelewu w PLN (liczba, np. 200.0).") == "Kwota przelewu w PLN (liczba)"
+    assert llm._clean_desc("Numer sprawy, np. ZP.039.2025.") == "Numer sprawy."
+    assert llm._clean_desc("Bez przykładu.") == "Bez przykładu."
+
+
 def test_examples_are_stripped_from_prompt_descriptions():
     cls = CLASSES["odwolanie"]
     spec = next(s for s in cls.fields if s.name == "numer_postepowania")
@@ -166,3 +172,56 @@ def test_classify_with_llm_accepts_only_known_class():
     assert llm.classify_with_llm(d, classes, FakeClient('{"class": "przelew"}')) == "przelew"
     assert llm.classify_with_llm(d, classes, FakeClient('{"class": "none"}')) is None
     assert llm.classify_with_llm(d, classes, FakeClient('{"class": "wymyslona"}')) is None
+
+
+# ---------------------------------------------------------------- tryb "LLM poprawia regex"
+FULL = PRZELEW_BEZ_TYTULU.replace("opłata skarbowa", "Tytuł przelewu: opłata skarbowa")
+
+
+def run_review(client, monkeypatch, corrected=("tytul",), review=True):
+    from odw import feedback
+    monkeypatch.setattr(feedback, "corrected_fields", lambda cls: set(corrected))   # pola poprawiane wcześniej przez człowieka
+    doc = doc_of(FULL)
+    cls = CLASSES["przelew"]
+    ex = extract(doc, cls)
+    filled = llm.fill_missing(doc, cls, ex, client, examples=[], hints=[], review=review)
+    return ex, filled, {f.name: f for f in ex.fields}
+
+
+def test_review_lets_llm_correct_a_wrong_regex_value(monkeypatch):
+    ex0 = extract(doc_of(FULL), CLASSES["przelew"])
+    assert ex0.json["przelew_bankowy"]["tytul"].startswith("opłata skarbowa")       # regex coś znalazł
+    fake = FakeClient(json.dumps({"tytul": "opłata skarbowa od pełnomocnictwa dla Jan Kowalski"}))
+    ex, filled, by = run_review(fake, monkeypatch)
+    assert filled == ["tytul"]
+    assert ex.json["przelew_bankowy"]["tytul"] == "opłata skarbowa od pełnomocnictwa dla Jan Kowalski"
+    assert by["tytul"].method == "llm" and any("LLM poprawił" in w and "było" in w for w in by["tytul"].warnings)
+
+
+def test_review_keeps_value_when_llm_confirms_it(monkeypatch):
+    same = extract(doc_of(FULL), CLASSES["przelew"]).json["przelew_bankowy"]["tytul"]
+    ex, filled, by = run_review(FakeClient(json.dumps({"tytul": same})), monkeypatch)
+    assert filled == [] and by["tytul"].method == "regex"
+
+
+def test_review_rejects_value_that_is_not_in_the_document(monkeypatch):
+    ex, filled, by = run_review(FakeClient(json.dumps({"tytul": "zmyślony tytuł"})), monkeypatch)
+    assert filled == [] and by["tytul"].method == "regex"
+
+
+def test_review_off_never_asks_llm_about_found_fields(monkeypatch):
+    fake = FakeClient(error=AssertionError("LLM nie powinien być wołany"))
+    _, filled, _ = run_review(fake, monkeypatch, review=False)
+    assert filled == [] and fake.calls == 0
+
+
+def test_review_only_considers_suspicious_fields(monkeypatch):
+    from odw import feedback, settings
+    monkeypatch.setattr(settings, "LLM_REVIEW_ALL", False)
+    monkeypatch.setattr(feedback, "corrected_fields", lambda cls: set())
+    ex = extract(doc_of(FULL), CLASSES["przelew"])
+    by = {f.name: f for f in ex.fields}
+    names = {s.name for s in llm.review_candidates(CLASSES["przelew"], by)}
+    assert "tytul" not in names and "kwota" not in names          # pewne, niepoprawiane pola nie są pytane
+    monkeypatch.setattr(feedback, "corrected_fields", lambda cls: {"tytul"})
+    assert "tytul" in {s.name for s in llm.review_candidates(CLASSES["przelew"], by)}

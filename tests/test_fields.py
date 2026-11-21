@@ -193,3 +193,42 @@ def test_every_class_has_fields_and_valid_methods():
         assert c.fields and c.output
         for f in c.fields:
             assert f.method in {"regex", "rules", "lookup", "llm"}
+
+
+def test_pelnomocnictwo_spolka_reprezentowana_przez_prezesa():
+    """Mocodawcą jest spółka (osoba prawna); prezes tylko podpisuje - nie jest mocodawcą."""
+    from odw.extract import Page, PdfText
+    cls = {c.name: c for c in load_classes()}["pelnomocnictwo"]
+    text = ("PEŁNOMOCNICTWO\nMocodawca: Alfa Budowa sp. z o.o., ul. Leśna 5, 00-001 Warszawa\n"
+            "KRS: 0000123456, NIP: 5252525252\nUstanawia pełnomocnikiem adw. Piotr Zieliński (nr wpisu WA 123).\n"
+            "W imieniu Alfa Budowa sp. z o.o.:\nJan Nowak\nPrezes Zarządu\n")
+    m = extract(PdfText("t.pdf", [Page(1, 595, 842, text, [])]), cls).json["mocodawca"][0]
+    assert m["data"]["nazwa"] == "Alfa Budowa sp. z o.o."
+    assert m["data"]["typ"] == "osoba_prawna" and m["data"]["imie_nazwisko"] is None
+    assert m["podpisujacy"] == [{"imie_nazwisko": "Jan Nowak"}]
+
+
+def test_pelnomocnictwo_dwoch_pelnomocnikow_w_jednej_linii_bez_numeru_wpisu():
+    cls = {c.name: c for c in load_classes()}["pelnomocnictwo"]
+    text = ("PEŁNOMOCNICTWO\nMocodawca: Alfa sp. z o.o., ul. Leśna 5, 00-001 Warszawa\n"
+            "reprezentowana przez: adw. Patrycja Jakaś , r. pr. Marek Innyśtam\n")
+    ex = extract(PdfText("t.pdf", [Page(1, 595, 842, text, [])]), cls)
+    assert [p["imie_nazwisko"] for p in ex.json["pelnomocnicy"]] == ["Patrycja Jakaś", "Marek Innyśtam"]
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("zapis", [
+    "reprezentowana przez: adw. Patrycja Jakaś , r. pr. Marek Innyśtam",
+    "reprezentowana przez adw. Patrycja Jakaś, r. pr. Marek Innyśtam",
+    "reprezentowany przez pełnomocnika: radca prawny Patrycja Jakaś",
+    "reprezentowana przez:\nadw. Patrycja Jakaś\nadres do korespondencji: Kancelaria X, ul. A 1, 00-001 W",
+    "Odwołanie wnosi adw. Patrycja Jakaś (nr wpisu WA 1)",
+])
+def test_odwolanie_pelnomocnik_w_roznych_zapisach(zapis):
+    cls = {c.name: c for c in load_classes()}["odwolanie"]
+    text = ("Odwołujący:\nBelmoria S.A.\nul. Z 78, 90-803 Łódź\nKRS: 9999405188, NIP: 9999284065\n"
+            + zapis + "\nZamawiający:\nX S.A.\nODWOŁANIE\n")
+    j = extract(PdfText("t.pdf", [Page(1, 595, 842, text, [])]), cls).json["Odwolujacy"][0]
+    assert j["pelnomocnik"]["imie_nazwisko"] == "Patrycja Jakaś" and j["przez-pelnomocnika"] == 1

@@ -1,0 +1,37 @@
+# Gotowe profile dostawców LLM (API zgodne z OpenAI). Wybierz w .env:  LLM_PROVIDER=ovh
+# Wszystkie wartości można nadpisać w .env (LLM_BASE_URL, LLM_MODEL, LLM_API_KEY).
+#
+# Wymóg organizatora: API świadczone przez firmę z serwerami w UE/EOG, model otwarty.
+# Adresy URL sprawdzone w dokumentacji dostawców (listopad 2026). NAZWY MODELI ZMIENIAJĄ SIĘ -
+# aktualną listę pokaże:  python -m odw.check_llm --list
+providers:
+  ovh:
+    label: OVHcloud AI Endpoints
+    region: Francja (UE)
+    base_url: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+    model: Mistral-Nemo-Instruct-2407       # Apache 2.0, 12B; alternatywa: gpt-oss-20b (Apache 2.0)
+    key_hint: Token z portalu AI Endpoints (OVHcloud Manager). Bez tokenu działa darmowy, limitowany tryb.
+  scaleway:
+    label: Scaleway Generative APIs
+    region: Francja (UE)
+    base_url: https://api.scaleway.ai/v1
+    model: mistral-nemo-instruct-2407       # nazwę zweryfikuj komendą --list
+    key_hint: Klucz API z konsoli Scaleway (IAM -> API keys).
+  ionos:
+    label: IONOS AI Model Hub
+    region: Niemcy (UE)
+    base_url: https://openai.inference.de-txl.ionos.com/v1
+    model: meta-llama/Meta-Llama-3.1-8B-Instruct   # licencja Llama (nie Apache) - rozważ inny model
+    key_hint: Token (JWT) z panelu IONOS Cloud.
+  mistral:
+    label: Mistral AI (La Plateforme)
+    region: Francja (UE)
+    base_url: https://api.mistral.ai/v1
+    model: open-mistral-nemo                # otwarty model Mistral Nemo; nazwę zweryfikuj komendą --list
+    key_hint: Klucz API z console.mistral.ai.
+  ollama:
+    label: Ollama (lokalnie)
+    region: Ten komputer
+    base_url: http://localhost:11434/v1
+    model: qwen2.5:3b
+    key_hint: Klucz niepotrzebny.

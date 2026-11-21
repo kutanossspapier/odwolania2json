@@ -37,6 +37,13 @@ sections:
     end: '^\s*(?:Odwołując\w+\s*:|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
     split: '^\s*\d+\)\s'
 
+# Nazwy grup pól na ekranie (pierwszy człon ścieżki w JSON)
+group_labels:
+  OdwolanieKIO: Odwołanie
+  Odwolujacy: Odwołujący
+  Zamawiajacy: Zamawiający
+  ZamowieniePubliczne: Zamówienie publiczne
+
 # Szkielet wynikowego JSON-a zgodny z oczekiwane-json/odwolanie.json
 output:
   OdwolanieKIO: {data: null, czynnosc_dzien: null, czynnosc_powod_id: null, czynnosc_opis: null, miejscowosc: null}

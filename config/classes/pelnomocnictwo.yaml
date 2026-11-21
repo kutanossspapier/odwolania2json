@@ -31,6 +31,10 @@ sections:
     split: '^\s*W\s+imieniu[^\n]*:\s*$'
     max_chars: 20000
 
+group_labels:
+  mocodawca: Mocodawca
+  pelnomocnicy: Pełnomocnicy
+
 # Szkielet wynikowego JSON-a zgodny z oczekiwane-json/pelnomocnictwo.json
 output:
   mocodawca:

@@ -19,6 +19,9 @@ recognition:
     - {pattern: 'tytuł|\bopis\b', weight: 1}
     - {pattern: 'zrealizowano|wykonano|zaksięgowano', weight: 1}
 
+group_labels:
+  przelew_bankowy: Przelew bankowy
+
 # Szkielet wynikowego JSON-a zgodny z oczekiwane-json/przelew.json
 output:
   przelew_bankowy: {data_operacji: null, kwota: null, na_rachunek: null, numer_transakcji: null, tytul: null, z_rachunku: null}

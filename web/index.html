@@ -70,7 +70,7 @@ code{font-family:var(--mono);font-size:12px;word-break:break-all}
 .field{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid transparent}
 .field:hover{background:var(--accent-soft)}
 .field.on{background:var(--accent-soft);border-left-color:var(--accent)}
-.field.check{border-left-color:#f08a24;background:var(--warn-soft)}
+.field.lowc{border-left-color:#f08a24;background:var(--warn-soft)}
 .field .name{font-size:12px;color:var(--muted)}
 .field .val{grid-column:1;font-weight:600;word-break:break-word}
 .field .val.none{color:var(--muted);font-weight:400;font-style:italic}
@@ -97,6 +97,19 @@ th{color:var(--muted);font-weight:500;border-top:0}
 .drop{border:2px dashed var(--line);border-radius:10px;padding:8px 14px;color:var(--muted);cursor:pointer}
 .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .spin{color:var(--muted)}
+.mode input{vertical-align:-2px;margin-right:3px}
+.mode.off{opacity:.6}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin:0 3px 0 4px}
+.dot.on{background:var(--ok)} .dot.offl{background:var(--bad)}
+.summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:120px}
+.stat b{font-size:20px;display:block;line-height:1.2}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)} .stat.ok b{color:var(--ok)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:2}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:2px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.group{padding:6px 14px;background:var(--bg);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);font-weight:600}
 </style>
 </head>
 <body>
@@ -109,7 +122,9 @@ th{color:var(--muted);font-weight:500;border-top:0}
     <button data-view="wizard">Kreator nowej klasy</button>
   </nav>
   <span class="spacer"></span>
-  <span class="mode" id="mode" title="Tryb ekstrakcji"></span>
+  <label class="mode" id="llmbox" title="LLM uzupełnia tylko pola, których regex nie znalazł">
+    <input type="checkbox" id="llmtoggle"> Użyj LLM <span id="llmstate"></span>
+  </label>
   <button class="btn" id="upload">Wgraj PDF</button>
   <input type="file" id="file" accept="application/pdf" multiple hidden>
 </header>
@@ -121,8 +136,10 @@ th{color:var(--muted);font-weight:500;border-top:0}
       <select id="samples"><option value="">Wczytaj przykład z danych UZP…</option></select>
       <label class="drop" id="drop">…albo upuść tutaj pliki PDF</label>
       <button class="btn ghost" id="clear">Wyczyść sprawę</button>
+      <button class="btn ghost" id="zip" disabled>Pobierz JSON-y sprawy (ZIP)</button>
       <span class="hint" id="busy"></span>
     </div>
+    <div class="summary" id="summary"></div>
     <div class="grid">
       <div class="col left">
         <h2>Dokumenty sprawy</h2>
@@ -159,7 +176,7 @@ th{color:var(--muted);font-weight:500;border-top:0}
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.min.js";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const state = { docs: [], cur: -1, pdf: null, renderId: 0, scale: 1, selected: null, lowConf: 0.75 };
+const state = { docs: [], cur: -1, pdf: null, renderId: 0, scale: 1, selected: null, lowConf: 0.75, filter: "all", checks: [], llm: false };
 const METHOD = { regex: ["Reguła","acc"], rules: ["Reguła","acc"], lookup: ["Słownik","acc"], llm: ["LLM","warn"] };
 
 /* ---------- nawigacja ---------- */
@@ -171,7 +188,14 @@ $("#nav").addEventListener("click", e => {
 });
 
 /* ---------- status i próbki ---------- */
-fetch("/api/status").then(r => r.json()).then(s => { state.lowConf = s.low_confidence; $("#mode").textContent = "tryb: " + s.mode + (s.llm_model ? " ("+s.llm_model+")" : ""); });
+fetch("/api/status").then(r => r.json()).then(s => {
+  state.lowConf = s.low_confidence;
+  const box = $("#llmbox"), tg = $("#llmtoggle");
+  $("#llmstate").innerHTML = `<span class="dot ${s.llm_reachable ? "on" : "offl"}"></span>${esc(s.llm_model)}`;
+  if (!s.llm_reachable) { tg.disabled = true; box.classList.add("off"); box.title = "Brak połączenia z serwerem LLM (" + s.llm_url + "). Uruchom Ollamę i odśwież stronę."; }
+  else { tg.checked = state.llm = s.llm_enabled; }
+});
+$("#llmtoggle").addEventListener("change", e => { state.llm = e.target.checked; busy(state.llm ? "Nowe dokumenty będą analizowane z LLM." : "Nowe dokumenty: tylko regex."); });
 fetch("/api/samples").then(r => r.json()).then(list => {
   const sel = $("#samples");
   const sets = document.createElement("optgroup"); sets.label = "Komplety (odwołanie + pełnomocnictwo + przelew)";
@@ -195,7 +219,7 @@ function busy(t){ $("#busy").textContent = t || ""; }
 async function addSample(f){
   busy("analizuję " + f.name + "…");
   try {
-    const r = await (await fetch("/api/process-sample?id=" + encodeURIComponent(f.id))).json();
+    const r = await (await fetch("/api/process-sample?llm=" + state.llm + "&id=" + encodeURIComponent(f.id))).json();
     pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true });
   } catch(e){ busy("Błąd: " + e); return; }
   busy("");
@@ -204,14 +228,14 @@ async function addFile(file){
   busy("analizuję " + file.name + "…");
   const fd = new FormData(); fd.append("file", file);
   try {
-    const resp = await fetch("/api/process", { method: "POST", body: fd });
+    const resp = await fetch("/api/process?llm=" + state.llm, { method: "POST", body: fd });
     if (!resp.ok) throw new Error((await resp.json()).detail);
     pushDoc({ name: file.name, url: URL.createObjectURL(file), result: await resp.json() });
   } catch(e){ busy("Błąd: " + (e.message||e)); return; }
   busy("");
 }
 function pushDoc(d){ state.docs.push(d); renderDocs(); selectDoc(state.docs.length - 1); refreshChecks(); }
-function clearCase(){ state.docs = []; state.cur = -1; state.pdf = null; renderDocs(); $("#pages").innerHTML = '<div class="empty">Tu pojawi się dokument.</div>';
+function clearCase(){ state.docs = []; state.cur = -1; state.pdf = null; state.checks = []; renderDocs(); renderSummary(); $("#pages").innerHTML = '<div class="empty">Tu pojawi się dokument.</div>';
   $("#fields").innerHTML = '<div class="empty">Wybierz dokument z listy.</div>'; $("#checks").innerHTML = '<div class="empty" style="padding:14px">Pojawi się po wgraniu dokumentów.</div>'; $("#pdfinfo").textContent = ""; }
 $("#clear").onclick = clearCase;
 $("#upload").onclick = () => $("#file").click();
@@ -223,6 +247,18 @@ drop.addEventListener("drop", async e => { for (const f of e.dataTransfer.files)
 
 /* ---------- lista dokumentów + walidacja ---------- */
 function toCheck(d){ return d.result.fields.filter(f => f.status !== "brak" && f.confidence < state.lowConf).length; }
+function renderSummary(){
+  const n = state.docs.length; $("#zip").disabled = !n;
+  if (!n) { $("#summary").innerHTML = ""; return; }
+  const known = state.docs.filter(d => d.result.classification.class_name).length;
+  const chk = state.docs.reduce((a, d) => a + toCheck(d), 0);
+  const cnt = s => state.checks.filter(c => c.status === s).length;
+  const llm = state.docs.reduce((a, d) => a + d.result.llm_fields.length, 0);
+  const stat = (v, l, cls = "") => `<div class="stat ${cls}"><b>${v}</b><span>${l}</span></div>`;
+  $("#summary").innerHTML = stat(n, "dokumentów w sprawie") + stat(known + " / " + n, "rozpoznanych typów", known < n ? "warn" : "ok")
+    + stat(chk, "pól do sprawdzenia", chk ? "warn" : "ok") + stat(cnt("ok") + " ✓  " + cnt("blad") + " ✗", "walidacje między dokumentami", cnt("blad") ? "bad" : "ok")
+    + (state.docs.some(d => d.result.used_llm) ? stat(llm, "pól uzupełnionych przez LLM") : "");
+}
 function renderDocs(){
   const box = $("#docs");
   if (!state.docs.length) { box.innerHTML = '<div class="empty">Brak dokumentów.<br>Wgraj PDF-y albo wybierz przykład.</div>'; return; }
@@ -238,6 +274,7 @@ async function refreshChecks(){
   const docs = state.docs.filter(d => d.result.classification.class_name).map(d => ({ name: d.name, class_name: d.result.classification.class_name, json: d.result.json }));
   if (!docs.length) return;
   const res = await (await fetch("/api/crosscheck", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(docs) })).json();
+  state.checks = res; renderSummary();
   const icon = { ok: "✓", blad: "✗", pominieto: "–" };
   $("#checks").innerHTML = res.map(r => `<div class="check"><span class="i ${r.status}">${icon[r.status]}</span><div>${esc(r.name)}<small>${esc(r.detail)}</small></div></div>`).join("");
 }
@@ -302,9 +339,18 @@ function renderFields(d){
     h += `<div class="meta" style="margin-top:4px">Oczekiwano w danych UZP: <b>${d.truth ? esc(c.titles[d.truth] || d.truth) : "pusty wynik (negatyw)"}</b> ${ok ? '<span class="yes">✓ zgodne</span>' : '<span style="color:var(--bad);font-weight:700">✗ niezgodne</span>'}</div>`;
   }
   h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms} ms${r.used_ocr ? " · użyto OCR" : ""}${r.llm_fields.length ? " · LLM uzupełnił: " + r.llm_fields.length : ""}</div></div>`;
+  const cat = f => f.status === "brak" || f.status === "llm" ? "missing" : (f.confidence < state.lowConf ? "check" : "found");
+  const counts = { all: r.fields.length, check: 0, found: 0, missing: 0 };
+  r.fields.forEach(f => counts[cat(f)]++);
+  if (r.fields.length) h += `<div class="chips">` + [["all","Wszystkie"],["check","Do sprawdzenia"],["found","Znalezione"],["missing","Brak"]]
+    .map(([k, l]) => `<button class="chip ${state.filter === k ? "on" : ""}" data-f="${k}">${l} ${counts[k]}</button>`).join("") + `</div>`;
+  let lastGroup = null;
   r.fields.forEach((f, i) => {
+    if (state.filter !== "all" && cat(f) !== state.filter) return;
+    const g = f.path.split(/[.\[]/)[0];
+    if (g !== lastGroup) { lastGroup = g; h += `<div class="group">${esc((r.group_labels || {})[g] || g)}</div>`; }
     const val = fmt(f.value), low = f.status !== "brak" && f.confidence < state.lowConf, m = METHOD[f.method] || [f.method, ""];
-    h += `<div class="field ${low ? "check" : ""} ${state.selected === i ? "on" : ""}" data-i="${i}" title="${esc(f.description)}">
+    h += `<div class="field ${low ? "lowc" : ""} ${state.selected === i ? "on" : ""}" data-i="${i}" title="${esc(f.description)}">
       <div class="name">${esc(f.name.replaceAll("_", " "))} <code style="color:var(--muted)">${esc(f.path)}</code></div>
       <div class="val ${val === null ? "none" : ""}">${val === null ? (f.status === "llm" ? "oczekuje na LLM" : "— brak —") : esc(val)}</div>
       <div class="side">${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
@@ -327,6 +373,8 @@ function scoresHtml(c){
     <table>${c.details[n].map(x => `<tr><td class="${x.matched ? "yes" : "no"}">${x.matched ? "✓" : "–"}</td><td><code>${esc(x.pattern)}</code></td><td>${x.weight}</td><td>${x.snippet ? `<span class="snip">${esc(x.snippet)}</span>` : ""}</td></tr>`).join("")}</table></details>`).join("");
 }
 $("#fields").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (chip) { state.filter = chip.dataset.f; renderFields(state.docs[state.cur]); const f = currentField(); if (f) highlight(f); return; }
   const el = e.target.closest(".field"); if (!el) return;
   state.selected = +el.dataset.i;
   document.querySelectorAll(".field").forEach(x => x.classList.toggle("on", x === el));
@@ -334,6 +382,33 @@ $("#fields").addEventListener("click", e => {
   if (!f.rects || !f.rects.length) { document.querySelectorAll(".hl").forEach(x => x.remove()); return; }
   highlight(f);
 });
+
+/* ---------- eksport ZIP (bez bibliotek): output/sprawa/<plik>.json ---------- */
+const CRC = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (const x of b) c = CRC[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function makeZip(files){
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true);
+    parts.push(lh, name, data);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(ch, name); offset += 30 + name.length + data.length;
+  }
+  const csize = central.reduce((a, p) => a + (p.byteLength ?? p.length), 0);
+  const end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, csize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+$("#zip").onclick = () => {
+  const used = {}, files = state.docs.map(d => {
+    let base = d.name.replace(/\.pdf$/i, ""); used[base] = (used[base] || 0) + 1; if (used[base] > 1) base += "_" + used[base];
+    return { name: "output/sprawa/" + base + ".json", text: JSON.stringify(d.result.json, null, 2) };   // negatyw = {}
+  });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(makeZip(files)); a.download = "output_sprawa.zip"; a.click();
+};
 
 /* ---------- klasy dokumentów ---------- */
 async function loadClasses(){

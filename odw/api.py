@@ -26,10 +26,20 @@ TRUE = {"odwolanie.pdf": "odwolanie", "pelnomocnictwo.pdf": "pelnomocnictwo",
 LOW_CONFIDENCE = 0.75
 
 
-def _result_payload(path: Path, display_name: str) -> dict:
+def _llm_reachable() -> bool:
+    """Czy serwer LLM (np. Ollama) odpowiada? Szybki test GET /models."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(settings.LLM_BASE_URL.rstrip("/") + "/models", timeout=1.5):
+            return True
+    except Exception:
+        return False
+
+
+def _result_payload(path: Path, display_name: str, llm: bool = False) -> dict:
     t0 = time.perf_counter()
     classes = load_classes()
-    res = process(path, classes)
+    res = process(path, classes, use_llm=llm)
     ms = round((time.perf_counter() - t0) * 1000)
     cl = res.classification
     cls = next((c for c in classes if c.name == cl.class_name), None)
@@ -51,6 +61,8 @@ def _result_payload(path: Path, display_name: str) -> dict:
             "titles": {c.name: c.title for c in classes},
         },
         "fields": fields,
+        "group_labels": (cls.raw.get("group_labels") or {}) if cls else {},
+        "used_llm": llm,
         "json": res.json,
         "llm_fields": res.llm_fields,
         "text": [{"page": p.number, "text": p.text[:6000]} for p in res.doc.pages[:5]],
@@ -60,8 +72,9 @@ def _result_payload(path: Path, display_name: str) -> dict:
 
 @app.get("/api/status")
 def api_status():
-    return {"llm_enabled": settings.LLM_ENABLED, "llm_model": settings.LLM_MODEL if settings.LLM_ENABLED else None,
-            "mode": "regex + LLM" if settings.LLM_ENABLED else "tylko regex",
+    reachable = _llm_reachable()
+    return {"llm_enabled": settings.LLM_ENABLED, "llm_model": settings.LLM_MODEL,
+            "llm_reachable": reachable, "llm_url": settings.LLM_BASE_URL,
             "low_confidence": LOW_CONFIDENCE}
 
 
@@ -102,19 +115,19 @@ def api_sample_pdf(id: str):
 
 
 @app.get("/api/process-sample")
-def api_process_sample(id: str):
-    return _result_payload(_sample_path(id), id.split("/")[-1])
+def api_process_sample(id: str, llm: bool = False):
+    return _result_payload(_sample_path(id), id.split("/")[-1], llm)
 
 
 @app.post("/api/process")
-async def api_process(file: UploadFile = File(...)):
+async def api_process(file: UploadFile = File(...), llm: bool = False):
     data = await file.read()
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "To nie wygląda na plik PDF")
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "upload.pdf"
         p.write_bytes(data)
-        return _result_payload(p, file.filename or "plik.pdf")
+        return _result_payload(p, file.filename or "plik.pdf", llm)
 
 
 @app.post("/api/crosscheck")

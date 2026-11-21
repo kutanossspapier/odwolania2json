@@ -76,6 +76,7 @@ fields:
       - '^(?!PEŁNOMOCNICTWO)([^\n,]{3,100}?),\s*(?:ul\.|al\.|pl\.|os\.)'
 
   - name: mocodawca_krs
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: mocodawca[].data.krs
     method: regex
     per_block: true
@@ -107,6 +108,7 @@ fields:
       - 'KRS\s*:?\s*\d{10}\b'
 
   - name: mocodawca_imie_nazwisko
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: mocodawca[0].data.imie_nazwisko
     method: regex            # wersja regex; LLM uzupełnia tylko, gdy regex nic nie znajdzie
     case_sensitive: true
@@ -144,6 +146,7 @@ fields:
       - '(?:adw\.|r\.\s*pr\.)\s+([^\n(),]+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.|NIP\s*\d|KRS\s*\d)[^\n]*nr\s+wpisu'
 
   - name: pelnomocnik_pesel
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: pelnomocnicy[0].pesel
     type: integer
     method: regex

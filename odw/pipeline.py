@@ -27,8 +27,18 @@ class Result:
         return self.extraction.json if self.extraction else {}
 
 
+def blank_extraction(cls: DocClass, ex: Extraction) -> None:
+    """Czyści wyniki regexów (do pomiaru jakości samego LLM - tryb 'tylko LLM')."""
+    import copy
+    for f in ex.fields:
+        f.value, f.raw, f.page, f.rects = None, None, None, []
+        f.confidence, f.status, f.warnings = 0.0, "brak", []
+    ex.json = copy.deepcopy(cls.output)
+
+
 def process(path: str | Path, classes: list[DocClass] | None = None,
-            max_pages: int | None = None, use_llm: bool | None = None, client=None) -> Result:
+            max_pages: int | None = None, use_llm: bool | None = None, client=None,
+            llm_only: bool = False) -> Result:
     classes = classes or load_classes()
     use_llm = settings.LLM_ENABLED if use_llm is None else use_llm
     doc = extract_pdf(path, max_pages=max_pages)
@@ -44,6 +54,9 @@ def process(path: str | Path, classes: list[DocClass] | None = None,
     if cl.class_name:
         cls = next(c for c in classes if c.name == cl.class_name)
         ex = extract(doc, cls)
+        if llm_only:
+            blank_extraction(cls, ex)
+            use_llm = True
         if use_llm:
             filled = llm.fill_missing(doc, cls, ex, client)
     return Result(doc, cl, ex, filled)

@@ -67,11 +67,26 @@ def test_prompt_contains_only_missing_fields():
     assert '"tytul"' in prompt and '"kwota"' not in prompt
 
 
-def test_hallucinated_value_gets_low_confidence_and_warning():
+def test_hallucinated_value_is_rejected_with_warning():
     ex, filled, by = run_fill("przelew", PRZELEW_BEZ_TYTULU, FakeClient(json.dumps({"tytul": "coś zmyślonego"})))
-    assert filled == ["tytul"]
-    assert by["tytul"].confidence == llm.CONF_LLM_NOT_IN_TEXT < llm.LOW_CONFIDENCE
-    assert by["tytul"].warnings
+    assert filled == []
+    assert ex.json["przelew_bankowy"]["tytul"] is None
+    assert any("nie ma w dokumencie" in w for w in by["tytul"].warnings)
+
+
+def test_llm_values_are_normalized_like_regex_values():
+    text = PRZELEW_BEZ_TYTULU.replace("Rachunek zleceniodawcy: PL43 0463 3766 1291 7568 1186 9204\n", "Z konta PL43 0463 3766 1291 7568 1186 9204\n")
+    fake = FakeClient(json.dumps({"z_rachunku": "PL43 0463 3766 1291 7568 1186 9204"}))
+    ex, filled, _ = run_fill("przelew", text, fake)
+    assert filled == ["z_rachunku"]          # regex pominął pole, więc uzupełnia je LLM
+    assert ex.json["przelew_bankowy"]["z_rachunku"] == "43046337661291756811869204"   # bez "PL" i spacji
+
+
+def test_examples_are_stripped_from_prompt_descriptions():
+    cls = CLASSES["odwolanie"]
+    spec = next(s for s in cls.fields if s.name == "numer_postepowania")
+    prompt = llm.build_prompt(cls, [spec], doc_of("x"))
+    assert "ZP.039.2025" not in prompt and "numer_postepowania" in prompt
 
 
 def test_json_wrapped_in_markdown_is_parsed():
@@ -94,6 +109,12 @@ def test_wrong_type_is_rejected_per_field():
     ex, filled, by = run_fill("przelew", text, fake)
     assert filled == ["tytul"]                   # zły typ odrzucony, dobre pole zostaje
     assert ex.json["przelew_bankowy"]["kwota"] is None
+
+
+def test_numbers_returned_as_text_are_coerced():
+    text = PRZELEW_BEZ_TYTULU.replace("Kwota 17,00 PLN", "Kwota przelewu -- siedemnaście")   # regex nie znajdzie kwoty
+    ex, filled, _ = run_fill("przelew", text, FakeClient(json.dumps({"kwota": "17,00 PLN"})))
+    assert "kwota" in filled and ex.json["przelew_bankowy"]["kwota"] == 17.0
 
 
 def test_llm_not_called_when_nothing_missing():
@@ -120,6 +141,17 @@ def test_llm_fills_reason_and_lookup_description_stays_consistent():
     assert "czynnosc_powod_id" in filled
     assert ex.json["OdwolanieKIO"]["czynnosc_powod_id"] == 9
     assert ex.json["OdwolanieKIO"]["czynnosc_opis"] == "Decyzja o unieważnieniu postępowania"
+
+
+def test_nullable_fields_are_never_sent_to_llm():
+    """data/miejscowosc bywają legalnie puste - LLM nie może ich 'uzupełniać'."""
+    cls = CLASSES["odwolanie"]
+    ex = extract(doc_of(ODWOLANIE_NIEJASNE.replace("Katowice, dnia 24 sierpnia 2026 roku\n", "")), cls)
+    by = {f.name: f for f in ex.fields}
+    assert by["data"].status == "brak"
+    asked = [s.name for s in cls.fields if llm.needs_llm(s, by[s.name])]
+    assert "data" not in asked and "miejscowosc" not in asked and "numer_bzp" not in asked
+    assert "czynnosc_powod_id" in asked
 
 
 def test_reason_outside_1_12_is_rejected():

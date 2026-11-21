@@ -118,6 +118,10 @@ def main(argv=None):
     ap.add_argument("--save", default="reports/ostatni_eval.json")
     ap.add_argument("--llm", action="store_true",
                     help="włącz LLM jako uzupełnienie (wymaga działającego serwera z .env)")
+    ap.add_argument("--llm-only", action="store_true",
+                    help="pomiar samego LLM: wyłącza wyniki regexów (wolne - użyj z --sets)")
+    ap.add_argument("--sets", type=int, default=0,
+                    help="tylko pierwsze N kompletów (przyklad_01..N) + 2 negatywy; 0 = wszystko")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -132,10 +136,18 @@ def main(argv=None):
     errors: dict[tuple, list] = defaultdict(list)
     cls_ok = cls_total = llm_filled = 0
 
-    for pdf, cls, js in collect_cases(Path(args.dane)):
+    cases = collect_cases(Path(args.dane))
+    if args.sets:
+        pos = [c for c in cases if c[1] and int(c[0].parent.name[-2:]) <= args.sets]
+        neg = [c for c in cases if not c[1] and c[0].parent.name == "negatywne"][:2]
+        cases = pos + neg
+    for pdf, cls, js in cases:
         if args.only and cls != args.only:
             continue
-        res = process(pdf, classes, max_pages=None if cls else 3, use_llm=args.llm)
+        res = process(pdf, classes, max_pages=None if cls else 3, use_llm=args.llm,
+                      llm_only=args.llm_only)
+        print(f"  [{cls or 'negatyw':14s}] {pdf.parent.name}/{pdf.name}  LLM: {len(res.llm_fields)} pól",
+              file=sys.stderr, flush=True)
         llm_filled += len(res.llm_fields)
         cls_total += 1
         cls_ok += res.classification.class_name == cls
@@ -156,8 +168,8 @@ def main(argv=None):
         if method_of.get((t, g), "llm") in IMPLEMENTED or t == "negatyw":
             overall_impl.add(c)
 
-    print(f"\nTryb: {'regex + LLM' if args.llm else 'tylko regex (bez LLM)'}"
-          + (f"; pól uzupełnionych przez LLM: {llm_filled}" if args.llm else ""))
+    mode = "TYLKO LLM (regex wyłączony)" if args.llm_only else ("regex + LLM" if args.llm else "tylko regex (bez LLM)")
+    print(f"\nTryb: {mode}" + (f"; pól uzupełnionych przez LLM: {llm_filled}" if (args.llm or args.llm_only) else ""))
     print(f"Klasyfikacja: {cls_ok}/{cls_total} poprawnie")
     print(f"F1 WSZYSTKIE pola: {overall.f1:.3f}  "
           f"(P={overall.p:.3f} R={overall.r:.3f})")

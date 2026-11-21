@@ -189,7 +189,7 @@ $("#nav").addEventListener("click", e => {
 
 /* ---------- status i próbki ---------- */
 fetch("/api/status").then(r => r.json()).then(s => {
-  state.lowConf = s.low_confidence;
+  state.lowConf = s.low_confidence; state.llmReachable = s.llm_reachable;
   const box = $("#llmbox"), tg = $("#llmtoggle");
   $("#llmstate").innerHTML = `<span class="dot ${s.llm_reachable ? "on" : "offl"}"></span>${esc(s.llm_model)}`;
   if (!s.llm_reachable) { tg.disabled = true; box.classList.add("off"); box.title = "Brak połączenia z serwerem LLM (" + s.llm_url + "). Uruchom Ollamę i odśwież stronę."; }
@@ -220,7 +220,7 @@ async function addSample(f){
   busy("analizuję " + f.name + "…");
   try {
     const r = await (await fetch("/api/process-sample?llm=" + state.llm + "&id=" + encodeURIComponent(f.id))).json();
-    pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true });
+    pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true, sampleId: f.id });
   } catch(e){ busy("Błąd: " + e); return; }
   busy("");
 }
@@ -230,9 +230,17 @@ async function addFile(file){
   try {
     const resp = await fetch("/api/process?llm=" + state.llm, { method: "POST", body: fd });
     if (!resp.ok) throw new Error((await resp.json()).detail);
-    pushDoc({ name: file.name, url: URL.createObjectURL(file), result: await resp.json() });
+    pushDoc({ name: file.name, url: URL.createObjectURL(file), result: await resp.json(), file });
   } catch(e){ busy("Błąd: " + (e.message||e)); return; }
   busy("");
+}
+async function reprocess(i, llm){
+  const d = state.docs[i]; busy((llm ? "LLM analizuje " : "Analizuję ") + d.name + "… (na procesorze może to potrwać do kilku minut)");
+  try {
+    if (d.isSample) d.result = await (await fetch("/api/process-sample?llm=" + llm + "&id=" + encodeURIComponent(d.sampleId))).json();
+    else { const fd = new FormData(); fd.append("file", d.file); const r = await fetch("/api/process?llm=" + llm, { method: "POST", body: fd }); if (!r.ok) throw new Error((await r.json()).detail); d.result = await r.json(); }
+  } catch(e){ busy("Błąd: " + (e.message || e)); return; }
+  busy(""); state.selected = null; renderDocs(); renderFields(d); renderSummary(); refreshChecks();
 }
 function pushDoc(d){ state.docs.push(d); renderDocs(); selectDoc(state.docs.length - 1); refreshChecks(); }
 function clearCase(){ state.docs = []; state.cur = -1; state.pdf = null; state.checks = []; renderDocs(); renderSummary(); $("#pages").innerHTML = '<div class="empty">Tu pojawi się dokument.</div>';
@@ -265,7 +273,8 @@ function renderDocs(){
   box.innerHTML = state.docs.map((d, i) => {
     const c = d.result.classification, n = toCheck(d);
     const type = c.class_name ? `<span class="tag ${c.uncertain ? "warn" : "ok"}">${esc(c.title)} · ${Math.round(c.confidence*100)}%</span>` : `<span class="tag bad">nie rozpoznano</span>`;
-    const chk = c.class_name ? (n ? `<span class="tag warn">do sprawdzenia: ${n}</span>` : `<span class="tag ok">bez uwag</span>`) : "";
+    const chk = (c.class_name ? (n ? `<span class="tag warn">do sprawdzenia: ${n}</span>` : `<span class="tag ok">bez uwag</span>`) : "")
+      + (d.result.llm_fields.length ? ` <span class="tag acc">LLM: ${d.result.llm_fields.length}</span>` : "");
     return `<div class="doc ${i === state.cur ? "on" : ""}" data-i="${i}"><div class="n">${esc(d.name)}</div>${type} ${chk}</div>`;
   }).join("");
 }
@@ -338,7 +347,9 @@ function renderFields(d){
     const ok = (d.truth || null) === c.class_name;
     h += `<div class="meta" style="margin-top:4px">Oczekiwano w danych UZP: <b>${d.truth ? esc(c.titles[d.truth] || d.truth) : "pusty wynik (negatyw)"}</b> ${ok ? '<span class="yes">✓ zgodne</span>' : '<span style="color:var(--bad);font-weight:700">✗ niezgodne</span>'}</div>`;
   }
-  h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms} ms${r.used_ocr ? " · użyto OCR" : ""}${r.llm_fields.length ? " · LLM uzupełnił: " + r.llm_fields.length : ""}</div></div>`;
+  h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms >= 2000 ? (r.timing_ms/1000).toFixed(1) + " s" : r.timing_ms + " ms"}${r.used_ocr ? " · użyto OCR" : ""}${r.used_llm ? " · LLM uzupełnił pól: " + r.llm_fields.length : " · tylko regex"}</div>`;
+  if (c.class_name) h += `<div style="margin-top:8px"><button class="btn ghost" id="rellm" ${state.llmReachable ? "" : "disabled title='Brak połączenia z serwerem LLM'"}>${r.used_llm ? "Przetwórz bez LLM" : "Przetwórz ten dokument z LLM"}</button></div>`;
+  h += `</div>`;
   const cat = f => f.status === "brak" || f.status === "llm" ? "missing" : (f.confidence < state.lowConf ? "check" : "found");
   const counts = { all: r.fields.length, check: 0, found: 0, missing: 0 };
   r.fields.forEach(f => counts[cat(f)]++);
@@ -361,6 +372,7 @@ function renderFields(d){
     <pre id="jsonpre">${esc(JSON.stringify(r.json, null, 2))}</pre></details>`;
   h += `<details class="box"><summary>Dlaczego taki typ?</summary><div class="meta" style="margin-bottom:8px">${esc(c.reason)}</div>${scoresHtml(c)}</details>`;
   $("#fields").innerHTML = h;
+  $("#rellm")?.addEventListener("click", () => reprocess(state.cur, !r.used_llm));
   $("#copyjson")?.addEventListener("click", () => navigator.clipboard.writeText(JSON.stringify(r.json, null, 2)));
   $("#dljson")?.addEventListener("click", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(r.json, null, 2)], {type: "application/json"})); a.download = d.name.replace(/\.pdf$/i, "") + ".json"; a.click(); });
 }

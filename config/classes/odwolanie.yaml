@@ -57,6 +57,7 @@ output:
 fields:
   # ------------------------------------------------ nagłówek odwołania
   - name: data
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: OdwolanieKIO.data
     type: date
     method: regex
@@ -69,6 +70,7 @@ fields:
       - {regex: '^\s*([A-ZŁŚŻŹĆ][^\n,\d]{1,40}),?\s+(\d{2}\.\d{2}\.\d{4})\s*(?:roku|r\.)?\s*$', group: 2}
 
   - name: miejscowosc
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: OdwolanieKIO.miejscowosc
     method: regex
     case_sensitive: true
@@ -147,6 +149,7 @@ fields:
       - '\A\s*([^\n]+)'
 
   - name: odwolujacy_krs
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: Odwolujacy[0].krs
     method: regex
     section: odwolujacy
@@ -224,6 +227,7 @@ fields:
       - '\A\s*([^\n]+)'
 
   - name: zamawiajacy_krs
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: Zamawiajacy[].krs
     method: regex
     per_block: true
@@ -254,6 +258,7 @@ fields:
       - 'REGON\s*:?\s*(\d{14}|\d{9})\b'
 
   - name: zamawiajacy_prowadzacy
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: Zamawiajacy[].prowadzacy_postepowanie
     type: integer
     method: regex
@@ -271,6 +276,7 @@ fields:
 
   # ------------------------------------------------ zamówienie publiczne
   - name: numer_bzp
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: ZamowieniePubliczne.numer_bzp
     method: regex
     section: naglowek          # tylko nagłówek: w treści bywają numery innych postępowań
@@ -292,6 +298,7 @@ fields:
       - 'znak\s+sprawy\s*:?\s*([^\s,;”"]+)'
 
   - name: numer_ted
+    llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
     path: ZamowieniePubliczne.numer_ted
     method: regex
     section: naglowek

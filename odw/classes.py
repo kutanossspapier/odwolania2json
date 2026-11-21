@@ -59,6 +59,7 @@ class FieldSpec:
     normalize: list[str] = field(default_factory=list)
     validators: list[str] = field(default_factory=list)
     multiple: bool = False         # wiele wartości -> lista (ścieżka z [])
+    llm_fill: bool = True          # False = LLM nie uzupełnia tego pola (null to częsta, poprawna odpowiedź)
     per_block: bool = False        # uruchom osobno w każdym bloku sekcji (element listy = blok)
     min_blocks: int = 1            # pomiń pole, jeśli bloków jest mniej
     if_found: object = None        # wartość stała, gdy wzorzec znaleziony
@@ -123,6 +124,7 @@ def _parse_field(d: dict) -> FieldSpec:
         section=d.get("section"), patterns=pats, normalize=d.get("normalize", []),
         validators=d.get("validators", []), multiple=bool(d.get("multiple", False)),
         per_block=bool(d.get("per_block", False)), min_blocks=int(d.get("min_blocks", 1)),
+        llm_fill=bool(d.get("llm_fill", True)),
         if_found=d.get("if_found"), default=d.get("default"),
         source_pattern=_compile(sp, cs) if sp else None, rules=rules,
         from_field=d.get("from"), table={str(k): v for k, v in d.get("table", {}).items()},

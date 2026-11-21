@@ -1,0 +1,324 @@
+{
+  "classification": {
+    "ok": 11,
+    "total": 11
+  },
+  "f1_all": 0.7794871794871796,
+  "f1_regex": 0.7794871794871796,
+  "per_type": {
+    "odwolanie": {
+      "f1": 0.7967479674796747,
+      "p": 0.7777777777777778,
+      "r": 0.8166666666666667
+    },
+    "pelnomocnictwo": {
+      "f1": 0.7222222222222223,
+      "p": 0.8125,
+      "r": 0.65
+    },
+    "przelew": {
+      "f1": 0.7777777777777778,
+      "p": 0.7777777777777778,
+      "r": 0.7777777777777778
+    }
+  },
+  "per_field": [
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.nazwa",
+      "method": "regex",
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 3
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_opis",
+      "method": "lookup",
+      "f1": 0.3333333333333333,
+      "tp": 1,
+      "fp": 2,
+      "fn": 2
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_powod_id",
+      "method": "rules",
+      "f1": 0.3333333333333333,
+      "tp": 1,
+      "fp": 2,
+      "fn": 2
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.tytul",
+      "method": "regex",
+      "f1": 0.3333333333333333,
+      "tp": 1,
+      "fp": 2,
+      "fn": 2
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.tytul",
+      "method": "regex",
+      "f1": 0.3333333333333333,
+      "tp": 1,
+      "fp": 2,
+      "fn": 2
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].podpisujacy[].imie_nazwisko",
+      "method": "regex",
+      "f1": 0.5,
+      "tp": 2,
+      "fp": 3,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.imie_nazwisko",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.mail",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.nazwa",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_postepowania",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_ted",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.na_rachunek",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.z_rachunku",
+      "method": "regex",
+      "f1": 0.6666666666666666,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.data",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 1,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.miejscowosc",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 1,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_bzp",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 1,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.krs",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 0,
+      "fn": 1
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.nip",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 0,
+      "fn": 1
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.typ",
+      "method": "regex",
+      "f1": 0.8,
+      "tp": 2,
+      "fp": 0,
+      "fn": 1
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_dzien",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].krs",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].nip",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].przez-pelnomocnika",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].regon",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].krs",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].nip",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].regon",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "pelnomocnicy[].imie_nazwisko",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 5,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.data_operacji",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.kwota",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.numer_transakcji",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0
+    }
+  ]
+}

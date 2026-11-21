@@ -1,0 +1,8 @@
+# Wspólne fragmenty regexów. W plikach klas używaj ich jako <<NAZWA>>.
+# (Wszystkie grupy są nieprzechwytujące, żeby nie psuły numeracji grup we wzorcach.)
+DATE: '(?:\d{4}-\d{2}-\d{2}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4})'
+AMOUNT: '\d[\d  ]*[.,]\d{2}'
+ACCOUNT: '(?:PL\s?)?\d{2}(?:\s?\d{4}){6}'
+PERSON: '[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż’''-]+ [A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż’''-]+'
+ROLE: '(?:Prezes|Wiceprezes|Prokurent|Członek|Wspólnik|Dyrektor|Likwidator|Komplementariusz|Zarząd|Pełnomocnik)'
+EMAIL: '[\w.+-]+@[\w-]+(?:\.[\w-]+)+'

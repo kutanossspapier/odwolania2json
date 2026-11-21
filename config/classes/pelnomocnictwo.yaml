@@ -3,6 +3,7 @@ title: Pełnomocnictwo
 description: >
   Pełnomocnictwo procesowe udzielane przez mocodawcę (wykonawcę) osobom
   reprezentującym go w postępowaniu odwoławczym przed KIO.
+
 recognition:
   min_score: 5
   llm_hint: >
@@ -17,3 +18,132 @@ recognition:
     - {pattern: 'reprezentowa\w+', weight: 1}
     - {pattern: 'umocowan\w+|umocowuj\w+', weight: 1}
     - {pattern: 'opłat\w+\s+skarbow\w+', weight: 0.5}
+
+# Mocodawcy: przy konsorcjum ("1) Firma A ..., 2) Firma B ...") każdy jest osobnym blokiem.
+sections:
+  mocodawcy:
+    start: '\A'
+    split: '(?<![\w.])\d\)\s+(?=[A-ZŁŚŻŹĆ])'
+    case_sensitive: true       # po "1)" musi być wielka litera (nazwa firmy), nie punkt listy
+    max_chars: 1500
+  podpisy:                     # przy konsorcjum: osobny blok podpisów dla każdego "W imieniu X:"
+    start: '\A'
+    split: '^\s*W\s+imieniu[^\n]*:\s*$'
+    max_chars: 20000
+
+# Szkielet wynikowego JSON-a zgodny z oczekiwane-json/pelnomocnictwo.json
+output:
+  mocodawca:
+    - data: {imie_nazwisko: null, krs: null, nazwa: null, nip: null, typ: null}
+      podpisujacy:
+        - {imie_nazwisko: null}
+  pelnomocnicy:
+    - {imie_nazwisko: null, pesel: null}
+
+fields:
+  - name: mocodawca_nazwa
+    path: mocodawca[].data.nazwa
+    method: regex
+    per_block: true
+    section: mocodawcy
+    case_sensitive: true
+    description: Pełna nazwa mocodawcy (osoby prawnej).
+    normalize: [ws]
+    patterns:
+      # konsorcjum: blok zaczyna się od nazwy (może się zawijać), po niej ", ul. ..."
+      - '\A\s*(?!PEŁNOMOCNICTWO)([^,]{3,120}?),\s*(?:ul\.|al\.|pl\.|os\.)'
+      # osoba fizyczna: "... prowadzący działalność gospodarczą pod firmą NAZWA, ul. ..."
+      - '(?s)pod\s+firmą\s+(.+?),\s*(?:ul\.|al\.|pl\.|os\.)'
+      # układ dwukolumnowy: "MOCODAWCA PEŁNOMOCNIK" / "NAZWA r. pr. Imię Nazwisko"
+      - '^MOCODAWCA\s+PEŁNOMOCNIK\s*\n(.+?)\s+(?:adw\.|r\.\s*pr\.)\s'
+      # nazwa w osobnej linii, pod nią adres, potem linia z KRS
+      - '^(?!PEŁNOMOCNICTWO)([^\n]+)\n[^\n]*\d{2}-\d{3}[^\n]*\n\s*KRS'
+      # "Mocodawcą jest NAZWA, ul. ..."
+      - '(?s)Mocodawc\w+\s+jest\s+(.+?),\s*(?:ul\.|al\.|pl\.|os\.)'
+      # "NAZWA z siedzibą w MIASTO (KRS ..."
+      - '^(?!PEŁNOMOCNICTWO)([^\n]+?)\s+z\s+siedzib\w+\s+w\s'
+      # "Mocodawca NAZWA" w jednej linii
+      - '^Mocodawc\w+\s+(?!jest\b)([^\n]+)'
+      # "Działając w imieniu NAZWA (dalej: ..."
+      - '(?s)Działając\s+w\s+imieniu\s+(.+?)\s*\(dalej'
+      # "... osoba upoważniona do reprezentacji NAZWA (KRS ..."
+      - '(?s)reprezentacji\s+(.+?)\s*\(KRS'
+      # "NAZWA, ul. ..." na początku linii
+      - '^(?!PEŁNOMOCNICTWO)([^\n,]{3,100}?),\s*(?:ul\.|al\.|pl\.|os\.)'
+
+  - name: mocodawca_krs
+    path: mocodawca[].data.krs
+    method: regex
+    per_block: true
+    section: mocodawcy
+    description: KRS mocodawcy (10 cyfr).
+    validators: [krs]
+    patterns:
+      - 'KRS\s*:?\s*(\d{10})\b'
+
+  - name: mocodawca_nip
+    path: mocodawca[].data.nip
+    method: regex
+    per_block: true
+    section: mocodawcy
+    description: NIP mocodawcy (10 cyfr).
+    validators: [nip]
+    patterns:
+      - 'NIP\s*:?\s*(\d{10})\b'
+
+  - name: mocodawca_typ
+    path: mocodawca[].data.typ
+    method: regex
+    per_block: true
+    section: mocodawcy
+    description: "'osoba_prawna' (ma KRS) lub 'osoba_fizyczna'."
+    if_found: osoba_prawna
+    default: osoba_fizyczna
+    patterns:
+      - 'KRS\s*:?\s*\d{10}\b'
+
+  - name: mocodawca_imie_nazwisko
+    path: mocodawca[0].data.imie_nazwisko
+    method: regex            # wersja regex; LLM uzupełnia tylko, gdy regex nic nie znajdzie
+    case_sensitive: true
+    description: Imię i nazwisko mocodawcy, jeśli jest osobą fizyczną; dla osoby prawnej null.
+    normalize: [ws]
+    patterns:
+      - 'Ja,\s+niżej\s+podpisany(?:\(a\))?\s+(<<PERSON>>)'
+
+  - name: podpisujacy
+    path: mocodawca[].podpisujacy[].imie_nazwisko
+    method: regex
+    per_block: true
+    section: podpisy
+    case_sensitive: true
+    multiple: true
+    description: Osoby podpisujące w imieniu mocodawcy (imię i nazwisko pod linią podpisu, przed funkcją).
+    normalize: [ws]
+    patterns:
+      # osoba fizyczna podpisuje się pod "Mocodawca:" bez podania funkcji
+      - '^Mocodawca\s*:\s*\n\s*\.{5,}\s*\n(<<PERSON>>)\s*$'
+      # jedno imię i nazwisko nad funkcją (z opcjonalnym ogonem "adw. ..." w drugiej kolumnie)
+      - '^(<<PERSON>>)(?:[ \t]+(?:adw\.|r\.\s*pr\.)[^\n]*)?\n(?:[^\n]*pieczęć[^\n]*\n)?\s*<<ROLE>>'
+      # dwa podpisy obok siebie: "Imię Nazwisko  Imię Nazwisko" nad dwiema funkcjami
+      - {regex: '^(<<PERSON>>)[ \t]+(<<PERSON>>)[ \t]*\n(?:[^\n]*pieczęć[^\n]*\n)?\s*<<ROLE>>', groups: [1, 2]}
+
+  - name: pelnomocnicy
+    path: pelnomocnicy[].imie_nazwisko
+    method: regex
+    multiple: true
+    description: Imię i nazwisko każdego pełnomocnika w mianowniku.
+    normalize: [ws]
+    patterns:
+      - '(?:adw\.|r\.\s*pr\.|radc\w+\s+prawn\w+|adwokat\w*)\s+([^(),]+?)\s*(?:,\s*PESEL\s*\d{11}\s*)?(?:\(|,\s*)nr\s+wpisu'
+      # układ dwukolumnowy: "... r. pr. Imię Nazwisko" / "ul. ... nr wpisu WA ..." lub "NIP ... nr wpisu ..."
+      - '(?:adw\.|r\.\s*pr\.)\s+([^\n(),]+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.|NIP\s*\d|KRS\s*\d)[^\n]*nr\s+wpisu'
+
+  - name: pelnomocnik_pesel
+    path: pelnomocnicy[0].pesel
+    type: integer
+    method: regex
+    description: PESEL pierwszego pełnomocnika (11 cyfr), jeśli podany.
+    validators: [pesel]
+    patterns:
+      - 'PESEL\s*:?\s*(\d{11})\b'

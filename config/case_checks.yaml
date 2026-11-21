@@ -1,0 +1,39 @@
+# Walidacja między dokumentami jednej sprawy. Każda reguła porównuje wartość z jednego
+# dokumentu z wartością z innego; nowe reguły = nowe wpisy tutaj, bez zmian w kodzie.
+#
+# left/right: typ dokumentu + ścieżka w wynikowym JSON (np. pelnomocnicy[].imie_nazwisko)
+# op:
+#   equals        - wartości identyczne (po zwinięciu spacji, bez rozróżniania wielkości liter)
+#   in            - wartość z lewej występuje wśród wartości z prawej
+#   contained_in  - wartość z lewej jest fragmentem wartości z prawej (np. numer w tytule przelewu)
+# Gdy brakuje dokumentu albo wartości, reguła jest pomijana (status "pominięto").
+checks:
+  - name: Pełnomocnik z odwołania występuje w pełnomocnictwie
+    left:  {doc: odwolanie, path: "Odwolujacy[0].pelnomocnik.imie_nazwisko"}
+    right: {doc: pelnomocnictwo, path: "pelnomocnicy[].imie_nazwisko"}
+    op: in
+
+  - name: KRS Odwołującego zgadza się z KRS mocodawcy
+    left:  {doc: odwolanie, path: "Odwolujacy[0].krs"}
+    right: {doc: pelnomocnictwo, path: "mocodawca[0].data.krs"}
+    op: equals
+
+  - name: NIP Odwołującego zgadza się z NIP mocodawcy
+    left:  {doc: odwolanie, path: "Odwolujacy[0].nip"}
+    right: {doc: pelnomocnictwo, path: "mocodawca[0].data.nip"}
+    op: equals
+
+  - name: Nazwa Odwołującego zgadza się z nazwą mocodawcy
+    left:  {doc: odwolanie, path: "Odwolujacy[0].nazwa"}
+    right: {doc: pelnomocnictwo, path: "mocodawca[0].data.nazwa"}
+    op: equals
+
+  - name: Numer postępowania z odwołania jest w tytule przelewu
+    left:  {doc: odwolanie, path: "ZamowieniePubliczne.numer_postepowania"}
+    right: {doc: przelew, path: "przelew_bankowy.tytul"}
+    op: contained_in
+
+  - name: Pełnomocnik z odwołania jest w tytule przelewu (opłata skarbowa)
+    left:  {doc: odwolanie, path: "Odwolujacy[0].pelnomocnik.imie_nazwisko"}
+    right: {doc: przelew, path: "przelew_bankowy.tytul"}
+    op: contained_in

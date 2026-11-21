@@ -3,200 +3,348 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Odwołania2json – podgląd</title>
+<title>Odwołania2json</title>
 <style>
 :root{
-  --bg:#f5f6f8; --card:#fff; --ink:#1b2230; --muted:#667085; --line:#e4e7ec;
+  --bg:#f4f5f8; --card:#fff; --ink:#1b2230; --muted:#667085; --line:#e4e7ec;
   --accent:#2f5bea; --accent-soft:#e8eefe; --ok:#12805c; --ok-soft:#e3f5ee;
-  --warn:#b54708; --warn-soft:#fff2e0; --bad:#b42318; --bad-soft:#fde8e6;
+  --warn:#b54708; --warn-soft:#fff1de; --bad:#b42318; --bad-soft:#fde8e6; --hl:rgba(255,196,0,.38);
   --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#0f131a; --card:#171c26; --ink:#e7eaf0; --muted:#98a2b3; --line:#2a3140;
   --accent:#7d9bff; --accent-soft:#1d2744; --ok:#4cc9a0; --ok-soft:#12302a;
-  --warn:#f5a54a; --warn-soft:#3a2a12; --bad:#ff8a80; --bad-soft:#3a1b19;}}
+  --warn:#f5a54a; --warn-soft:#3a2a12; --bad:#ff8a80; --bad-soft:#3a1b19; --hl:rgba(255,196,0,.35);}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
-header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-header h1{font-size:18px;margin:0}
-header .sub{color:var(--muted);font-size:13px}
-main{max-width:1500px;margin:0 auto;padding:20px 24px 60px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px}
-.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;margin-bottom:16px}
-.drop{flex:1 1 320px;border:2px dashed var(--line);border-radius:12px;padding:14px 18px;text-align:center;color:var(--muted);cursor:pointer;background:var(--card);transition:.15s}
-.drop.over,.drop:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
-.drop b{color:var(--ink)}
-.sample{flex:1 1 320px;display:flex;flex-direction:column;gap:6px;justify-content:center}
-.sample label{font-size:13px;color:var(--muted)}
-select{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px}
-.step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card);position:relative}
-.step .n{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.step .t{font-weight:600}
-.step .d{font-size:12.5px;color:var(--muted);margin-top:2px}
-.step.done{border-color:var(--ok)} .step.done .n{color:var(--ok)}
-.step.soon{opacity:.55;border-style:dashed}
-.grid{display:grid;grid-template-columns:minmax(320px,5fr) minmax(360px,6fr);gap:16px;align-items:start}
-@media(max-width:1000px){.grid{grid-template-columns:1fr}}
-.viewer{position:sticky;top:12px}
-iframe{width:100%;height:78vh;border:1px solid var(--line);border-radius:8px;background:#fff}
-.empty{color:var(--muted);text-align:center;padding:60px 10px}
-.verdict{display:flex;gap:14px;align-items:center;margin-bottom:10px}
-.badge{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:16px}
-.badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.none{background:var(--bad-soft);color:var(--bad)}
-.badge.warn{background:var(--warn-soft);color:var(--warn)}
-.meta{color:var(--muted);font-size:13px}
-.reason{background:var(--accent-soft);border-radius:8px;padding:10px 12px;margin:8px 0 0}
-.bars{display:grid;gap:10px}
-.bar-row .lbl{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:3px}
-.track{position:relative;height:14px;background:var(--line);border-radius:7px;overflow:visible}
-.fill{height:100%;border-radius:7px;background:var(--muted)}
-.fill.win{background:var(--ok)}
-.thr{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.7}
-.legend{font-size:12px;color:var(--muted);margin-top:8px}
-details{border:1px solid var(--line);border-radius:8px;margin-top:8px;padding:0 12px}
-summary{cursor:pointer;padding:9px 0;font-weight:600;font-size:14px}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
-td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line);vertical-align:top}
-th{color:var(--muted);font-weight:500;border-top:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:0 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-height:56px}
+.brand{font-weight:700;font-size:17px;margin-right:6px}
+nav{display:flex;gap:2px;flex-wrap:wrap}
+nav button{background:none;border:0;border-bottom:3px solid transparent;padding:17px 12px 14px;font:inherit;color:var(--muted);cursor:pointer}
+nav button:hover{color:var(--ink)}
+nav button.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+.count{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:0 7px;font-size:12px;margin-left:4px}
+.spacer{flex:1}
+.mode{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:500}
+main{padding:14px 20px 40px;max-width:1700px;margin:0 auto}
+.hidden{display:none!important}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar select{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;min-width:260px}
+.toolbar .hint{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:290px minmax(300px,1fr) 440px;gap:12px;align-items:start}
+@media(max-width:1250px){.grid{grid-template-columns:260px 1fr}.grid .right{grid-column:1/-1}}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.col{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.col h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0;padding:12px 14px;border-bottom:1px solid var(--line)}
+.scroll{max-height:calc(100vh - 175px);overflow:auto}
+.empty{color:var(--muted);text-align:center;padding:40px 14px}
+/* lewa kolumna */
+.doc{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.doc:hover{background:var(--accent-soft)} .doc.on{background:var(--accent-soft);box-shadow:inset 3px 0 var(--accent)}
+.doc .n{font-weight:600;word-break:break-all}
+.tag{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-top:3px}
+.tag.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.tag.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.tag.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.checks{padding:4px 14px 12px}
+.check{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.check:last-child{border:0}
+.check .i{width:18px;flex:none;font-weight:700}
+.i.ok{color:var(--ok)} .i.blad{color:var(--bad)} .i.pominieto{color:var(--muted)}
+.check small{display:block;color:var(--muted)}
+/* środek: PDF */
+#pages{padding:10px;background:var(--bg)}
+.page{position:relative;margin:0 auto 10px;box-shadow:0 1px 4px rgba(0,0,0,.25);background:#fff}
+.page canvas{display:block;width:100%;height:100%}
+.hl{position:absolute;background:var(--hl);outline:2px solid #e6a700;border-radius:2px;pointer-events:none}
+/* prawa kolumna */
+.type{padding:12px 14px;border-bottom:1px solid var(--line)}
+.type .t{font-size:16px;font-weight:700}
+.conf{height:6px;background:var(--line);border-radius:3px;margin:6px 0 4px;overflow:hidden}
+.conf>div{height:100%;background:var(--ok)}
+.meta{color:var(--muted);font-size:12.5px}
 code{font-family:var(--mono);font-size:12px;word-break:break-all}
-.yes{color:var(--ok);font-weight:700} .no{color:var(--muted)}
+.field{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid transparent}
+.field:hover{background:var(--accent-soft)}
+.field.on{background:var(--accent-soft);border-left-color:var(--accent)}
+.field.check{border-left-color:#f08a24;background:var(--warn-soft)}
+.field .name{font-size:12px;color:var(--muted)}
+.field .val{grid-column:1;font-weight:600;word-break:break-word}
+.field .val.none{color:var(--muted);font-weight:400;font-style:italic}
+.field .side{grid-row:1/3;grid-column:2;text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.pct{font-size:12px;font-variant-numeric:tabular-nums}
+.pct.low{color:var(--warn);font-weight:700}
+.warnline{grid-column:1/-1;font-size:12px;color:var(--warn)}
+details.box{border-top:1px solid var(--line);padding:0 14px}
+details.box summary{cursor:pointer;padding:10px 0;font-weight:600}
+pre{white-space:pre-wrap;font:12px/1.45 var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:320px;overflow:auto;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px}
+td,th{text-align:left;padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;border-top:0}
+.bar{display:flex;justify-content:space-between;font-size:13px}
+.track{position:relative;height:10px;background:var(--line);border-radius:5px;margin:2px 0 8px}
+.track .f{height:100%;border-radius:5px;background:var(--muted)} .track .f.win{background:var(--ok)}
+.track .thr{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.6}
 .snip{background:var(--ok-soft);color:var(--ok);padding:0 4px;border-radius:4px;font-family:var(--mono);font-size:12px}
-.neg{color:var(--bad);font-weight:600}
-pre{white-space:pre-wrap;font:12.5px/1.45 var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:340px;overflow:auto;margin:6px 0 10px}
-.tag{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.tag.ocr{background:var(--warn-soft);color:var(--warn);border-color:transparent}
-.truth{font-size:13px;margin-top:6px}
-.spin{display:none;color:var(--muted);margin-left:8px}
-.col{display:grid;gap:16px}
+.yes{color:var(--ok);font-weight:700}.no{color:var(--muted)}
+/* klasy */
+.cls{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.cls h3{margin:0 0 4px}
+.soon{max-width:560px;margin:60px auto;text-align:center;color:var(--muted)}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:8px 14px;color:var(--muted);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.spin{color:var(--muted)}
 </style>
 </head>
 <body>
 <header>
-  <h1>Odwołania2json</h1>
-  <span class="sub">podgląd: jak aplikacja rozpoznaje dokument i dlaczego</span>
+  <span class="brand">Odwołania2json</span>
+  <nav id="nav">
+    <button data-view="docs" class="on">Dokumenty</button>
+    <button data-view="classes">Klasy dokumentów</button>
+    <button data-view="examples">Baza przykładów<span class="count">0</span></button>
+    <button data-view="wizard">Kreator nowej klasy</button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="mode" id="mode" title="Tryb ekstrakcji"></span>
+  <button class="btn" id="upload">Wgraj PDF</button>
+  <input type="file" id="file" accept="application/pdf" multiple hidden>
 </header>
+
 <main>
-  <div class="steps" id="steps"></div>
+  <!-- ================= DOKUMENTY ================= -->
+  <section id="view-docs">
+    <div class="toolbar">
+      <select id="samples"><option value="">Wczytaj przykład z danych UZP…</option></select>
+      <label class="drop" id="drop">…albo upuść tutaj pliki PDF</label>
+      <button class="btn ghost" id="clear">Wyczyść sprawę</button>
+      <span class="hint" id="busy"></span>
+    </div>
+    <div class="grid">
+      <div class="col left">
+        <h2>Dokumenty sprawy</h2>
+        <div class="scroll">
+          <div id="docs"><div class="empty">Brak dokumentów.<br>Wgraj PDF-y albo wybierz przykład.</div></div>
+          <h2 style="border-top:1px solid var(--line)">Walidacja między dokumentami</h2>
+          <div class="checks" id="checks"><div class="empty" style="padding:14px">Pojawi się po wgraniu dokumentów.</div></div>
+        </div>
+      </div>
+      <div class="col mid">
+        <h2>Podgląd PDF <span class="meta" id="pdfinfo"></span></h2>
+        <div class="scroll" id="pdfscroll"><div id="pages"><div class="empty">Tu pojawi się dokument.</div></div></div>
+      </div>
+      <div class="col right">
+        <h2>Rozpoznanie i pola</h2>
+        <div class="scroll" id="fields"><div class="empty">Wybierz dokument z listy.</div></div>
+      </div>
+    </div>
+  </section>
 
-  <div class="toolbar">
-    <label class="drop" id="drop">
-      <input type="file" id="file" accept="application/pdf" hidden>
-      <b>Wgraj PDF</b> – kliknij albo upuść plik tutaj
-    </label>
-    <div class="sample">
-      <label for="samples">…albo wybierz przykład z danych UZP <span id="spin" class="spin">analizuję…</span></label>
-      <select id="samples"><option value="">— wybierz —</option></select>
-    </div>
-  </div>
+  <!-- ================= KLASY ================= -->
+  <section id="view-classes" class="hidden"></section>
 
-  <div class="grid">
-    <div class="card viewer">
-      <h2>Podgląd PDF</h2>
-      <div id="pdfbox" class="empty">Tu pojawi się dokument.</div>
-    </div>
-    <div class="col" id="results">
-      <div class="card empty">Wgraj PDF albo wybierz przykład, żeby zobaczyć wynik.</div>
-    </div>
-  </div>
+  <section id="view-examples" class="hidden"><div class="soon"><h2>Baza przykładów</h2>
+    Tu pojawią się poprawki zapisane przez człowieka (z możliwością dodania ich jako przykładów dla LLM).
+    Ten moduł powstaje w kolejnym kroku.</div></section>
+  <section id="view-wizard" class="hidden"><div class="soon"><h2>Kreator nowej klasy</h2>
+    Wgrasz 2–3 przykładowe PDF-y nowego typu, a LLM zaproponuje plik YAML do edycji i zatwierdzenia.
+    Ten moduł powstaje w kolejnym kroku.</div></section>
 </main>
 
+<script src="/vendor/pdf.min.js"></script>
 <script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.min.js";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const PIPE = [
-  ["1","Tekst z PDF","pdfplumber czyta tekst i pozycje słów; skan → OCR (Tesseract, pol)","done"],
-  ["2","Rozpoznanie typu","punkty za słowa kluczowe z plików YAML; poniżej progu = „nie moja klasa”","done"],
-  ["3","Pola przez regex","NIP, KRS, kwoty, daty, rachunki…","soon"],
-  ["4","Pola przez LLM","nazwy, osoby, powód odwołania…","soon"],
-  ["5","JSON","zgodny z formatem UZP","soon"],
-];
-$("#steps").innerHTML = PIPE.map(([n,t,d,s]) =>
-  `<div class="step ${s}"><div class="n">Krok ${n}${s==="soon"?" · wkrótce":" · działa"}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join("");
+const state = { docs: [], cur: -1, pdf: null, renderId: 0, scale: 1, selected: null, lowConf: 0.75 };
+const METHOD = { regex: ["Reguła","acc"], rules: ["Reguła","acc"], lookup: ["Słownik","acc"], llm: ["LLM","warn"] };
 
-async function loadSamples(){
-  const list = await (await fetch("/api/samples")).json();
+/* ---------- nawigacja ---------- */
+$("#nav").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["docs","classes","examples","wizard"].forEach(v => $("#view-"+v).classList.toggle("hidden", v !== b.dataset.view));
+  if (b.dataset.view === "classes") loadClasses();
+});
+
+/* ---------- status i próbki ---------- */
+fetch("/api/status").then(r => r.json()).then(s => { state.lowConf = s.low_confidence; $("#mode").textContent = "tryb: " + s.mode + (s.llm_model ? " ("+s.llm_model+")" : ""); });
+fetch("/api/samples").then(r => r.json()).then(list => {
   const sel = $("#samples");
-  const groups = {};
-  list.forEach(s => { const g = s.negative ? "Negatywne (powinny dać pusty wynik)" : s.id.split("/")[0]; (groups[g] ||= []).push(s); });
-  Object.entries(groups).forEach(([g, items]) => {
-    const og = document.createElement("optgroup"); og.label = g;
-    items.forEach(s => { const o = document.createElement("option"); o.value = s.id;
-      o.textContent = s.id.split("/").slice(1).join("/"); o.dataset.truth = s.truth ?? ""; og.appendChild(o); });
-    sel.appendChild(og);
+  const sets = document.createElement("optgroup"); sets.label = "Komplety (odwołanie + pełnomocnictwo + przelew)";
+  const negs = document.createElement("optgroup"); negs.label = "Dokumenty negatywne (powinny dać pusty wynik)";
+  list.forEach(g => {
+    if (g.id === "negatywne") g.files.forEach(f => negs.append(new Option(f.name, "file:"+f.id)));
+    else sets.append(new Option(g.id.replace("przyklad_","Przykład "), "set:"+g.id));
   });
-}
-function showPdf(url){ $("#pdfbox").className=""; $("#pdfbox").innerHTML = `<iframe src="${url}#view=FitH"></iframe>`; }
-function busy(b){ $("#spin").style.display = b ? "inline" : "none"; }
+  sel.append(sets, negs); state.samples = list;
+});
+$("#samples").addEventListener("change", async e => {
+  const v = e.target.value; if (!v) return;
+  clearCase();
+  if (v.startsWith("set:")) { const g = state.samples.find(x => x.id === v.slice(4)); for (const f of g.files) await addSample(f); }
+  else await addSample({ id: v.slice(5), name: v.split("/").pop(), truth: null });
+  e.target.value = "";
+});
 
-async function analyzeSample(id, truth){
-  busy(true); showPdf("/api/sample-pdf?id="+encodeURIComponent(id));
-  try { render(await (await fetch("/api/analyze-sample?id="+encodeURIComponent(id))).json(), truth, true); }
-  catch(e){ fail(e); } finally { busy(false); }
-}
-async function analyzeFile(f){
-  busy(true); showPdf(URL.createObjectURL(f)); $("#samples").value="";
-  const fd = new FormData(); fd.append("file", f);
+/* ---------- dodawanie dokumentów ---------- */
+function busy(t){ $("#busy").textContent = t || ""; }
+async function addSample(f){
+  busy("analizuję " + f.name + "…");
   try {
-    const r = await fetch("/api/analyze", {method:"POST", body:fd});
-    if(!r.ok) throw new Error((await r.json()).detail);
-    render(await r.json(), null, false);
-  } catch(e){ fail(e); } finally { busy(false); }
+    const r = await (await fetch("/api/process-sample?id=" + encodeURIComponent(f.id))).json();
+    pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true });
+  } catch(e){ busy("Błąd: " + e); return; }
+  busy("");
 }
-function fail(e){ $("#results").innerHTML = `<div class="card"><span class="neg">Błąd:</span> ${esc(e.message||e)}</div>`; }
-
-function render(d, truth, isSample){
-  const c = d.classification, win = c.class_name;
-  const maxS = Math.max(...Object.values(c.scores), ...Object.values(c.thresholds), 1) * 1.15;
-  const conf = Math.round(c.confidence * 100);
-  const badgeCls = win ? (c.uncertain ? "warn" : "ok") : "none";
-  let truthHtml = "";
-  if (isSample){
-    const expected = truth || null;
-    const good = expected === win;
-    truthHtml = `<div class="truth">Oczekiwany wynik w danych UZP: <b>${expected ? esc(c.titles[expected]||expected) : "pusty (negatyw)"}</b> — ${good ? '<span class="yes">zgodne ✓</span>' : '<span class="neg">NIEZGODNE ✗</span>'}</div>`;
-  }
-  const bars = Object.keys(c.scores).sort((a,b)=>c.scores[b]-c.scores[a]).map(n => `
-    <div class="bar-row"><div class="lbl"><span>${esc(c.titles[n])}</span><span><b>${c.scores[n]}</b> pkt (próg ${c.thresholds[n]})</span></div>
-    <div class="track"><div class="fill ${n===win?"win":""}" style="width:${Math.max(0,c.scores[n])/maxS*100}%"></div>
-    <div class="thr" style="left:${c.thresholds[n]/maxS*100}%" title="próg"></div></div></div>`).join("");
-  const kw = Object.keys(c.scores).sort((a,b)=>c.scores[b]-c.scores[a]).map((n,i) => `
-    <details ${i===0?"open":""}><summary>${esc(c.titles[n])} – słowa kluczowe (${c.details[n].filter(x=>x.matched).length}/${c.details[n].length} zadziałało)</summary>
-    <table><tr><th></th><th>wzorzec (regex)</th><th>waga</th><th>znaleziono</th></tr>
-    ${c.details[n].map(x=>`<tr><td class="${x.matched?"yes":"no"}">${x.matched?"✓":"–"}</td><td><code>${esc(x.pattern)}</code></td>
-      <td class="${x.weight<0?"neg":""}">${x.weight>0?"+":""}${x.weight}</td><td>${x.snippet?`<span class="snip">${esc(x.snippet)}</span>`:""}</td></tr>`).join("")}</table></details>`).join("");
-  const pages = d.pages.map(p => `<tr><td>${p.number}</td><td>${p.chars}</td><td>${p.words}</td>
-    <td>${p.ocr?'<span class="tag ocr">OCR (skan)</span>':'<span class="tag">warstwa tekstowa</span>'}</td>
-    <td>${p.used_for_classification?"tak":"–"}</td></tr>`).join("");
-  const texts = d.text.map(t => `<details><summary>Strona ${t.page}</summary><pre>${esc(t.text)}</pre></details>`).join("");
-  $("#results").innerHTML = `
-  <div class="card">
-    <h2>Wynik rozpoznania</h2>
-    <div class="verdict"><span class="badge ${badgeCls}">${win ? esc(c.title) : "Nie rozpoznano (pusty JSON)"}</span>
-      <span class="meta">${win ? `pewność <b>${conf}%</b> · plik <code>config/classes/${esc(c.yaml_file)}</code>${c.uncertain?" · niepewne":""}` : "dokument nie pasuje do żadnej klasy"}</span></div>
-    <div class="meta">${esc(d.filename)} · ${d.pages.length} str. · tekst ${d.timing_ms.extract} ms · klasyfikacja ${d.timing_ms.classify} ms${d.used_ocr?" · użyto OCR":""}</div>
-    ${truthHtml}
-    <div class="reason"><b>Dlaczego?</b> ${esc(c.reason)}</div>
-  </div>
-  <div class="card"><h2>Punkty klas</h2><div class="bars">${bars}</div>
-    <div class="legend">Czarna kreska = próg. Klasa wygrywa, jeśli przekroczy próg i ma najwięcej punktów. Pewność = udział zwycięzcy w sumie punktów dwóch najlepszych klas.</div></div>
-  <div class="card"><h2>Które słowa kluczowe zadziałały</h2>${kw}
-    <div class="legend">Wzorce pochodzą z plików YAML – żeby dodać typ dokumentu, wystarczy nowy plik, bez zmian w kodzie. Klasyfikator patrzy tylko na pierwsze 2 strony.</div></div>
-  <div class="card"><h2>Strony i OCR</h2>
-    <table><tr><th>str.</th><th>znaków</th><th>słów</th><th>źródło tekstu</th><th>użyta do klasyfikacji</th></tr>${pages}</table>
-    ${d.warnings.map(w=>`<div class="neg">⚠ ${esc(w)}</div>`).join("")}
-    <div class="legend">Strona z mniej niż 30 znakami uznawana jest za skan i czytana OCR-em. Każde słowo ma zapisane współrzędne – posłużą do podświetlania pól w PDF.</div></div>
-  <div class="card"><h2>Wyciągnięty tekst</h2>${texts}</div>`;
+async function addFile(file){
+  busy("analizuję " + file.name + "…");
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const resp = await fetch("/api/process", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error((await resp.json()).detail);
+    pushDoc({ name: file.name, url: URL.createObjectURL(file), result: await resp.json() });
+  } catch(e){ busy("Błąd: " + (e.message||e)); return; }
+  busy("");
 }
-
-$("#samples").addEventListener("change", e => { const o = e.target.selectedOptions[0]; if(o.value) analyzeSample(o.value, o.dataset.truth||null); });
-$("#file").addEventListener("change", e => e.target.files[0] && analyzeFile(e.target.files[0]));
+function pushDoc(d){ state.docs.push(d); renderDocs(); selectDoc(state.docs.length - 1); refreshChecks(); }
+function clearCase(){ state.docs = []; state.cur = -1; state.pdf = null; renderDocs(); $("#pages").innerHTML = '<div class="empty">Tu pojawi się dokument.</div>';
+  $("#fields").innerHTML = '<div class="empty">Wybierz dokument z listy.</div>'; $("#checks").innerHTML = '<div class="empty" style="padding:14px">Pojawi się po wgraniu dokumentów.</div>'; $("#pdfinfo").textContent = ""; }
+$("#clear").onclick = clearCase;
+$("#upload").onclick = () => $("#file").click();
+$("#file").onchange = async e => { for (const f of e.target.files) await addFile(f); e.target.value = ""; };
 const drop = $("#drop");
-["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add("over");}));
-["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove("over");}));
-drop.addEventListener("drop", e => e.dataTransfer.files[0] && analyzeFile(e.dataTransfer.files[0]));
-loadSamples();
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", async e => { for (const f of e.dataTransfer.files) if (f.type === "application/pdf") await addFile(f); });
+
+/* ---------- lista dokumentów + walidacja ---------- */
+function toCheck(d){ return d.result.fields.filter(f => f.status !== "brak" && f.confidence < state.lowConf).length; }
+function renderDocs(){
+  const box = $("#docs");
+  if (!state.docs.length) { box.innerHTML = '<div class="empty">Brak dokumentów.<br>Wgraj PDF-y albo wybierz przykład.</div>'; return; }
+  box.innerHTML = state.docs.map((d, i) => {
+    const c = d.result.classification, n = toCheck(d);
+    const type = c.class_name ? `<span class="tag ${c.uncertain ? "warn" : "ok"}">${esc(c.title)} · ${Math.round(c.confidence*100)}%</span>` : `<span class="tag bad">nie rozpoznano</span>`;
+    const chk = c.class_name ? (n ? `<span class="tag warn">do sprawdzenia: ${n}</span>` : `<span class="tag ok">bez uwag</span>`) : "";
+    return `<div class="doc ${i === state.cur ? "on" : ""}" data-i="${i}"><div class="n">${esc(d.name)}</div>${type} ${chk}</div>`;
+  }).join("");
+}
+$("#docs").addEventListener("click", e => { const d = e.target.closest(".doc"); if (d) selectDoc(+d.dataset.i); });
+async function refreshChecks(){
+  const docs = state.docs.filter(d => d.result.classification.class_name).map(d => ({ name: d.name, class_name: d.result.classification.class_name, json: d.result.json }));
+  if (!docs.length) return;
+  const res = await (await fetch("/api/crosscheck", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(docs) })).json();
+  const icon = { ok: "✓", blad: "✗", pominieto: "–" };
+  $("#checks").innerHTML = res.map(r => `<div class="check"><span class="i ${r.status}">${icon[r.status]}</span><div>${esc(r.name)}<small>${esc(r.detail)}</small></div></div>`).join("");
+}
+
+/* ---------- wybór dokumentu ---------- */
+async function selectDoc(i){
+  state.cur = i; state.selected = null; renderDocs(); renderFields(state.docs[i]);
+  await openPdf(state.docs[i].url);
+}
+
+/* ---------- PDF (pdf.js) ---------- */
+async function openPdf(url){
+  const id = ++state.renderId;
+  $("#pages").innerHTML = '<div class="empty">Ładuję PDF…</div>';
+  try { state.pdf = await pdfjsLib.getDocument(url).promise; } catch(e){ $("#pages").innerHTML = '<div class="empty">Nie udało się wczytać PDF.</div>'; return; }
+  if (id !== state.renderId) return;
+  $("#pdfinfo").textContent = "· " + state.pdf.numPages + " str.";
+  await renderPages(id);
+}
+async function renderPages(id){
+  const box = $("#pages"); box.innerHTML = "";
+  const width = Math.max(260, $("#pdfscroll").clientWidth - 22);
+  for (let n = 1; n <= state.pdf.numPages; n++) {
+    const page = await state.pdf.getPage(n); if (id !== state.renderId) return;
+    const base = page.getViewport({ scale: 1 }), scale = width / base.width; state.scale = scale;
+    const vp = page.getViewport({ scale: scale * (window.devicePixelRatio || 1) });
+    const wrap = document.createElement("div"); wrap.className = "page"; wrap.dataset.page = n;
+    wrap.style.width = width + "px"; wrap.style.height = base.height * scale + "px";
+    const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height; wrap.append(cv); box.append(wrap);
+    await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+  }
+  const f = currentField(); if (f) highlight(f);
+}
+function currentField(){ const d = state.docs[state.cur]; return d && state.selected != null ? d.result.fields[state.selected] : null; }
+function highlight(f){
+  document.querySelectorAll(".hl").forEach(x => x.remove());
+  if (!f || !f.rects || !f.rects.length || !f.page) return;
+  const wrap = document.querySelector(`.page[data-page="${f.page}"]`); if (!wrap) return;
+  let first = null;
+  f.rects.forEach(r => {
+    const d = document.createElement("div"); d.className = "hl"; const s = state.scale;
+    Object.assign(d.style, { left: r.x0*s - 2 + "px", top: r.top*s - 1 + "px", width: (r.x1-r.x0)*s + 4 + "px", height: (r.bottom-r.top)*s + 2 + "px" });
+    wrap.append(d); first ||= d;
+  });
+  first.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (state.pdf) renderPages(++state.renderId); }, 250); });
+
+/* ---------- prawa kolumna ---------- */
+function fmt(v){ if (v === null || v === undefined) return null; return Array.isArray(v) ? v.map(x => x === null ? "—" : x).join(", ") : String(v); }
+function renderFields(d){
+  const r = d.result, c = r.classification;
+  let h = `<div class="type">`;
+  if (c.class_name) {
+    h += `<div class="t">${esc(c.title)}</div><div class="conf"><div style="width:${Math.round(c.confidence*100)}%"></div></div>
+      <div class="meta">pewność <b>${Math.round(c.confidence*100)}%</b> · plik <code>config/classes/${esc(c.yaml_file)}</code>${c.uncertain ? " · niepewne" : ""}</div>`;
+  } else {
+    h += `<div class="t" style="color:var(--bad)">Nie rozpoznano typu</div><div class="meta">Dokument nie pasuje do żadnej klasy — wynikowy JSON jest pusty ({}).</div>`;
+  }
+  if (d.isSample) {
+    const ok = (d.truth || null) === c.class_name;
+    h += `<div class="meta" style="margin-top:4px">Oczekiwano w danych UZP: <b>${d.truth ? esc(c.titles[d.truth] || d.truth) : "pusty wynik (negatyw)"}</b> ${ok ? '<span class="yes">✓ zgodne</span>' : '<span style="color:var(--bad);font-weight:700">✗ niezgodne</span>'}</div>`;
+  }
+  h += `<div class="meta">${r.pages.length} str. · ${r.timing_ms} ms${r.used_ocr ? " · użyto OCR" : ""}${r.llm_fields.length ? " · LLM uzupełnił: " + r.llm_fields.length : ""}</div></div>`;
+  r.fields.forEach((f, i) => {
+    const val = fmt(f.value), low = f.status !== "brak" && f.confidence < state.lowConf, m = METHOD[f.method] || [f.method, ""];
+    h += `<div class="field ${low ? "check" : ""} ${state.selected === i ? "on" : ""}" data-i="${i}" title="${esc(f.description)}">
+      <div class="name">${esc(f.name.replaceAll("_", " "))} <code style="color:var(--muted)">${esc(f.path)}</code></div>
+      <div class="val ${val === null ? "none" : ""}">${val === null ? (f.status === "llm" ? "oczekuje na LLM" : "— brak —") : esc(val)}</div>
+      <div class="side">${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
+      ${f.warnings.length ? `<div class="warnline">⚠ ${f.warnings.map(esc).join("; ")}</div>` : ""}</div>`;
+  });
+  h += `<details class="box"><summary>Wynikowy JSON</summary>
+    <div style="margin-bottom:6px"><button class="btn ghost" id="copyjson">Kopiuj</button> <button class="btn ghost" id="dljson">Pobierz .json</button></div>
+    <pre id="jsonpre">${esc(JSON.stringify(r.json, null, 2))}</pre></details>`;
+  h += `<details class="box"><summary>Dlaczego taki typ?</summary><div class="meta" style="margin-bottom:8px">${esc(c.reason)}</div>${scoresHtml(c)}</details>`;
+  $("#fields").innerHTML = h;
+  $("#copyjson")?.addEventListener("click", () => navigator.clipboard.writeText(JSON.stringify(r.json, null, 2)));
+  $("#dljson")?.addEventListener("click", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(r.json, null, 2)], {type: "application/json"})); a.download = d.name.replace(/\.pdf$/i, "") + ".json"; a.click(); });
+}
+function scoresHtml(c){
+  const max = Math.max(...Object.values(c.scores), ...Object.values(c.thresholds), 1) * 1.15;
+  return Object.keys(c.scores).sort((a,b) => c.scores[b]-c.scores[a]).map(n => `
+    <div class="bar"><span>${esc(c.titles[n])}</span><span><b>${c.scores[n]}</b> pkt (próg ${c.thresholds[n]})</span></div>
+    <div class="track"><div class="f ${n === c.class_name ? "win" : ""}" style="width:${Math.max(0,c.scores[n])/max*100}%"></div><div class="thr" style="left:${c.thresholds[n]/max*100}%"></div></div>
+    <details><summary class="meta">słowa kluczowe: ${c.details[n].filter(x=>x.matched).length}/${c.details[n].length} zadziałało</summary>
+    <table>${c.details[n].map(x => `<tr><td class="${x.matched ? "yes" : "no"}">${x.matched ? "✓" : "–"}</td><td><code>${esc(x.pattern)}</code></td><td>${x.weight}</td><td>${x.snippet ? `<span class="snip">${esc(x.snippet)}</span>` : ""}</td></tr>`).join("")}</table></details>`).join("");
+}
+$("#fields").addEventListener("click", e => {
+  const el = e.target.closest(".field"); if (!el) return;
+  state.selected = +el.dataset.i;
+  document.querySelectorAll(".field").forEach(x => x.classList.toggle("on", x === el));
+  const f = currentField();
+  if (!f.rects || !f.rects.length) { document.querySelectorAll(".hl").forEach(x => x.remove()); return; }
+  highlight(f);
+});
+
+/* ---------- klasy dokumentów ---------- */
+async function loadClasses(){
+  const list = await (await fetch("/api/classes")).json();
+  $("#view-classes").innerHTML = list.map(c => `<div class="cls"><h3>${esc(c.title)} <code>config/classes/${esc(c.file)}</code></h3>
+    <div class="meta">${esc(c.description)}</div>
+    <p class="meta">Rozpoznawanie: próg ${c.min_score} pkt, ${c.keywords.length} słów kluczowych · pól: ${c.fields.length}</p>
+    <table><tr><th>pole</th><th>ścieżka w JSON</th><th>metoda</th><th>opis</th></tr>
+    ${c.fields.map(f => `<tr><td>${esc(f.name)}</td><td><code>${esc(f.path)}</code></td><td><span class="tag ${(METHOD[f.method]||["","" ])[1]}">${(METHOD[f.method]||[f.method])[0]}</span></td><td>${esc(f.description)}</td></tr>`).join("")}</table></div>`).join("")
+    + `<p class="meta">Nowy typ dokumentu = nowy plik YAML w <code>config/classes/</code>, bez zmian w kodzie.</p>`;
+}
 </script>
 </body>
 </html>

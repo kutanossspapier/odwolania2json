@@ -4,6 +4,7 @@ description: >
   Pismo wnoszące odwołanie do Prezesa Krajowej Izby Odwoławczej od czynności
   zamawiającego w postępowaniu o udzielenie zamówienia publicznego. Zawiera
   dane Odwołującego, Zamawiającego, zarzuty i żądania.
+
 recognition:
   min_score: 5            # poniżej tego dokument NIE należy do tej klasy
   llm_hint: >
@@ -20,3 +21,284 @@ recognition:
     # sygnały, że to orzeczenie/decyzja, a nie odwołanie (waga ujemna)
     - {pattern: '^\s*(postanowienie|wyrok|uchwała|decyzja)\s*$', weight: -4}
     - {pattern: 'sygn\.\s*akt', weight: -4}
+
+# Fragmenty tekstu, do których zawężamy wzorce (żeby NIP Zamawiającego
+# nie pomylił się z NIP-em Odwołującego).
+sections:
+  naglowek:                 # wszystko przed treścią pisma ("Działając w imieniu ...")
+    start: '\A'
+    end: '^\s*Działając\s'
+    max_chars: 6000
+  odwolujacy:
+    start: '^\s*Odwołując\w+\s*:'
+    end: '^\s*(?:Zamawiając\w+\s*[(:]|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
+  zamawiajacy:              # przy kilku zamawiających blok = jeden zamawiający ("1) ...", "2) ...")
+    start: '^\s*Zamawiając\w+\s*[(:]'
+    end: '^\s*(?:Odwołując\w+\s*:|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
+    split: '^\s*\d+\)\s'
+
+# Szkielet wynikowego JSON-a zgodny z oczekiwane-json/odwolanie.json
+output:
+  OdwolanieKIO: {data: null, czynnosc_dzien: null, czynnosc_powod_id: null, czynnosc_opis: null, miejscowosc: null}
+  Odwolujacy:
+    - {krs: null, nazwa: null, nip: null, regon: null, przez-pelnomocnika: null,
+       pelnomocnik: {imie_nazwisko: null, nazwa: null, mail: null}}
+  Zamawiajacy:
+    - {krs: null, nazwa: null, nip: null, regon: null, prowadzacy_postepowanie: null}
+  ZamowieniePubliczne: {numer_bzp: null, numer_postepowania: null, numer_ted: null, tytul: null}
+
+fields:
+  # ------------------------------------------------ nagłówek odwołania
+  - name: data
+    path: OdwolanieKIO.data
+    type: date
+    method: regex
+    case_sensitive: true
+    description: Data z nagłówka pierwszej strony, z linii 'Miejscowość, dnia DD.MM.RRRR'.
+    normalize: [date_pl]
+    validators: [date_iso]
+    patterns:
+      - {regex: '^\s*([A-ZŁŚŻŹĆ][^\n,\d]{1,40}),\s+(?:dnia\s+)?(<<DATE>>)(?:\s+(?:roku|r\.))?\s*$', group: 2}
+      - {regex: '^\s*([A-ZŁŚŻŹĆ][^\n,\d]{1,40}),?\s+(\d{2}\.\d{2}\.\d{4})\s*(?:roku|r\.)?\s*$', group: 2}
+
+  - name: miejscowosc
+    path: OdwolanieKIO.miejscowosc
+    method: regex
+    case_sensitive: true
+    description: Miejscowość z nagłówka pierwszej strony, z linii 'X, dnia ...'.
+    normalize: [ws]
+    patterns:
+      - {regex: '^\s*([A-ZŁŚŻŹĆ][^\n,\d]{1,40}),\s+(?:dnia\s+)?(<<DATE>>)(?:\s+(?:roku|r\.))?\s*$', group: 1}
+      - {regex: '^\s*([A-ZŁŚŻŹĆ][^\n,\d]{1,40}),?\s+(\d{2}\.\d{2}\.\d{4})\s*(?:roku|r\.)?\s*$', group: 1}
+
+  # ------------------------------------------------ zaskarżona czynność
+  - name: czynnosc_dzien
+    path: OdwolanieKIO.czynnosc_dzien
+    type: date
+    method: regex
+    description: >
+      Data czynności zamawiającego uruchamiającej bieg terminu odwołania dla
+      pierwszego zarzutu (zdanie 'Zamawiający w dniu D miesiąca RRRR roku ...').
+    normalize: [date_pl]
+    validators: [date_iso]
+    patterns:
+      - '^\s*Zamawiając\w+\s+w\s+dniu\s+(<<DATE>>)'      # zdanie otwierające akapit
+      - 'Zamawiając\w+\s+w\s+dniu\s+(<<DATE>>)'
+
+  - name: czynnosc_powod_id
+    path: OdwolanieKIO.czynnosc_powod_id
+    type: integer
+    method: rules
+    description: >
+      Powód odwołania 1-12, ustalany WYŁĄCZNIE na podstawie pierwszego zarzutu.
+      Reguły sprawdzane po kolei, pierwsza pasująca wygrywa; niejednoznaczne
+      przypadki trafią do LLM.
+    # pierwsze zdanie po dacie (do kropki + wielkiej litery; kropki w "S.A.", "sp.", "nr" pomijamy)
+    source_pattern: '(?s)^\s*Zamawiając\w+\s+w\s+dniu\s+<<DATE>>\s*(?:roku|r\.)?,?\s+(.{0,300}?)(?:(?<![A-Za-z]\.[A-Za-z])(?<!\bsp)(?<!\bnr)(?<!\bpkt)(?<!\bust)(?<!\bart)(?<!\bz)\.\s+(?=[A-ZŁŚŻ])|\Z)'
+    rules:
+      - {pattern: 'zaniecha\w*\s+odrzucenia|nie\s+odrzucił', value: 7}
+      - {pattern: 'zaniecha\w*\s+wykluczenia|nie\s+wykluczył', value: 8}
+      - {pattern: 'zaniecha\w*\s+unieważnienia|nie\s+unieważni\w+', value: 10}
+      - {pattern: 'projektowan\w+\s+postanowieni\w+', value: 12}
+      - {pattern: 'opis\w*\s+przedmiotu', value: 11}
+      - {pattern: 'zmodyfikował|zmienił\s+treść', value: 5}
+      - {pattern: 'odpowiedzi|wyjaśnieni\w+', value: 6}
+      - {pattern: 'opublikował|specyfikacj\w+', value: 4}
+      - {pattern: 'odrzuc\w+', value: 1}
+      - {pattern: 'wyklucz\w+', value: 3}
+      - {pattern: 'unieważ\w+', value: 9}
+      - {pattern: 'wybór|wyboru|wyborze|wybrał', value: 2}
+
+  - name: czynnosc_opis
+    path: OdwolanieKIO.czynnosc_opis
+    method: lookup
+    description: Kanoniczny opis czynności zgodny 1:1 z czynnosc_powod_id.
+    from: czynnosc_powod_id
+    table:
+      1: Decyzja o odrzuceniu oferty
+      2: Ogłoszenie wyboru oferty
+      3: Decyzja o wykluczeniu wykonawcy
+      4: Publikacja specyfikacji warunków zamówienia (SWZ)
+      5: Modyfikacja treści SWZ
+      6: Odpowiedzi i wyjaśnienia do SWZ
+      7: Zaniechanie odrzucenia oferty
+      8: Zaniechanie wykluczenia wykonawcy
+      9: Decyzja o unieważnieniu postępowania
+      10: Zaniechanie unieważnienia postępowania
+      11: Opis przedmiotu zamówienia (OPZ)
+      12: Projektowane postanowienia umowy
+
+  # ------------------------------------------------ Odwołujący
+  - name: odwolujacy_nazwa
+    path: Odwolujacy[0].nazwa
+    method: regex
+    section: odwolujacy
+    description: Pełna nazwa Odwołującego (lider konsorcjum, jeśli występuje).
+    normalize: [ws]
+    patterns:
+      - 'Lider\s+Konsorcjum\s*:\s*\n([^\n]+)'
+      - '\A\s*([^\n]+)'
+
+  - name: odwolujacy_krs
+    path: Odwolujacy[0].krs
+    method: regex
+    section: odwolujacy
+    description: KRS Odwołującego (10 cyfr).
+    validators: [krs]
+    patterns:
+      - 'KRS\s*:?\s*(\d{10})\b'
+
+  - name: odwolujacy_nip
+    path: Odwolujacy[0].nip
+    method: regex
+    section: odwolujacy
+    description: NIP Odwołującego (10 cyfr).
+    validators: [nip]
+    patterns:
+      - 'NIP\s*:?\s*(\d{10})\b'
+
+  - name: odwolujacy_regon
+    path: Odwolujacy[0].regon
+    method: regex
+    section: odwolujacy
+    description: REGON Odwołującego (9 lub 14 cyfr).
+    validators: [regon]
+    patterns:
+      - 'REGON\s*:?\s*(\d{14}|\d{9})\b'
+
+  - name: odwolujacy_przez_pelnomocnika
+    path: Odwolujacy[0].przez-pelnomocnika
+    type: integer
+    method: regex
+    section: odwolujacy
+    description: 1 - odwołanie wnosi pełnomocnik, 0 - nie.
+    if_found: 1
+    default: 0
+    patterns:
+      - 'reprezentowan\w+\s+przez'
+
+  - name: pelnomocnik_imie_nazwisko
+    path: Odwolujacy[0].pelnomocnik.imie_nazwisko
+    method: regex
+    section: odwolujacy
+    description: Imię i nazwisko (pierwszego) pełnomocnika Odwołującego.
+    normalize: [ws]
+    patterns:
+      - 'reprezentowan\w+\s+przez\s*:\s*(?:adw\.|r\.\s*pr\.|radc\w+\s+prawn\w+|adwokat\w*)?\s*([^,\n]+)'
+
+  - name: pelnomocnik_nazwa
+    path: Odwolujacy[0].pelnomocnik.nazwa
+    method: regex
+    section: odwolujacy
+    description: Nazwa podmiotu zatrudniającego pełnomocnika (adres do korespondencji).
+    normalize: [ws]
+    patterns:
+      - '(?s)adres\s+do\s+korespondencji\s*:\s*(.+?),\s*(?:ul\.|al\.|pl\.|os\.)'
+
+  - name: pelnomocnik_mail
+    path: Odwolujacy[0].pelnomocnik.mail
+    method: regex
+    section: odwolujacy
+    description: Adres e-mail pełnomocnika.
+    patterns:
+      - '(<<EMAIL>>)'
+
+  # ------------------------------------------------ Zamawiający
+  # Pola per_block: jeśli jest kilku zamawiających, każdy dostaje osobny element listy.
+  - name: zamawiajacy_nazwa
+    path: Zamawiajacy[].nazwa
+    method: regex
+    per_block: true
+    section: zamawiajacy
+    description: Pełna nazwa Zamawiającego.
+    normalize: [ws]
+    patterns:
+      - '\A[^\n]*(?:Lider|Partner|prowadząc)[^\n]*:\s*\n([^\n]+)'
+      - '\A\s*([^\n]+)'
+
+  - name: zamawiajacy_krs
+    path: Zamawiajacy[].krs
+    method: regex
+    per_block: true
+    section: zamawiajacy
+    description: KRS Zamawiającego (jeśli jawnie podany).
+    validators: [krs]
+    patterns:
+      - 'KRS\s*:?\s*(\d{10})\b'
+
+  - name: zamawiajacy_nip
+    path: Zamawiajacy[].nip
+    method: regex
+    per_block: true
+    section: zamawiajacy
+    description: NIP Zamawiającego (jeśli jawnie podany).
+    validators: [nip]
+    patterns:
+      - 'NIP\s*:?\s*(\d{10})\b'
+
+  - name: zamawiajacy_regon
+    path: Zamawiajacy[].regon
+    method: regex
+    per_block: true
+    section: zamawiajacy
+    description: REGON Zamawiającego (jeśli jawnie podany).
+    validators: [regon]
+    patterns:
+      - 'REGON\s*:?\s*(\d{14}|\d{9})\b'
+
+  - name: zamawiajacy_prowadzacy
+    path: Zamawiajacy[].prowadzacy_postepowanie
+    type: integer
+    method: regex
+    per_block: true
+    min_blocks: 2             # przy jednym zamawiającym zostaje null
+    section: zamawiajacy
+    if_found: 1
+    default: 0
+    patterns:
+      - 'prowadząc\w+\s+postępowanie|\bLider\b'
+    description: >
+      null - brak informacji; 1 - jest więcej niż jeden zamawiający i ten jest
+      oznaczony jako prowadzący postępowanie / lider; 0 - więcej niż jeden
+      zamawiający i ten nie jest prowadzącym.
+
+  # ------------------------------------------------ zamówienie publiczne
+  - name: numer_bzp
+    path: ZamowieniePubliczne.numer_bzp
+    method: regex
+    section: naglowek          # tylko nagłówek: w treści bywają numery innych postępowań
+    description: "Numer ogłoszenia w BZP: 'YYYY/BZP ########' (bez spacji). NIE numer TED."
+    normalize: [bzp]
+    patterns:
+      - '(\d{4}/BZP\s?\d{8}(?:/\d{2})?)'
+
+  - name: numer_postepowania
+    path: ZamowieniePubliczne.numer_postepowania
+    method: regex
+    section: naglowek
+    description: Numer referencyjny / numer postępowania (ID po etykiecie), np. ZP.039.2025.
+    normalize: [rstrip_punct]
+    patterns:
+      - 'nr\s+referencyjny\s+sprawy\s*:?\s*([^\s,;”"]+)'
+      - 'nr\s+referencyjny\s*:?\s*([^\s,;”"]+)'
+      - 'numer\s+(?:referencyjny|postępowania|sprawy)\s*:?\s*([^\s,;”"]+)'
+      - 'znak\s+sprawy\s*:?\s*([^\s,;”"]+)'
+
+  - name: numer_ted
+    path: ZamowieniePubliczne.numer_ted
+    method: regex
+    section: naglowek
+    description: "Numer TED w formacie NNNNNN-YYYY (z 'YYYY/S ###-NNNNNN' też)."
+    normalize: [ted]
+    patterns:
+      - '(\d{4}/S\s*\d{3}-\d{6})'
+      - '(?:TED|Urzędowym\s+UE)\s*:?\s*(\d{6}-\d{4})'
+      - '\b(\d{6}-\d{4})\b'
+
+  - name: tytul
+    path: ZamowieniePubliczne.tytul
+    method: regex
+    description: Tytuł zamówienia lub postępowania (po 'pn.' w cudzysłowie).
+    normalize: [ws, strip_quotes]
+    patterns:
+      - '(?s)\bpn\.\s*[„"«]\s*(.+?)\s*[”"»]'

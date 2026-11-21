@@ -1,0 +1,351 @@
+{
+  "classification": {
+    "ok": 196,
+    "total": 196
+  },
+  "f1_all": 1.0,
+  "f1_regex": 1.0,
+  "per_type": {
+    "odwolanie": {
+      "f1": 1.0,
+      "p": 1.0,
+      "r": 1.0
+    },
+    "pelnomocnictwo": {
+      "f1": 1.0,
+      "p": 1.0,
+      "r": 1.0
+    },
+    "przelew": {
+      "f1": 1.0,
+      "p": 1.0,
+      "r": 1.0
+    }
+  },
+  "per_field": [
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_dzien",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_opis",
+      "method": "lookup",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.czynnosc_powod_id",
+      "method": "rules",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].krs",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 56,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].nip",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.imie_nazwisko",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.mail",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].pelnomocnik.nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].przez-pelnomocnika",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Odwolujacy[].regon",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].krs",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 58,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 63,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].nip",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 63,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].regon",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 63,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_bzp",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 48,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_postepowania",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.numer_ted",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 47,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "ZamowieniePubliczne.tytul",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.krs",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 62,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.nazwa",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 66,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.nip",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 66,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.typ",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 66,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].podpisujacy[].imie_nazwisko",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 95,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "pelnomocnicy[].imie_nazwisko",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 98,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.data_operacji",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.kwota",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.na_rachunek",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.numer_transakcji",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.tytul",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "przelew",
+      "field": "przelew_bankowy.z_rachunku",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 60,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.data",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 45,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "OdwolanieKIO.miejscowosc",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 45,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "odwolanie",
+      "field": "Zamawiajacy[].prowadzacy_postepowanie",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 6,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "pelnomocnicy[].pesel",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    {
+      "type": "pelnomocnictwo",
+      "field": "mocodawca[].data.imie_nazwisko",
+      "method": "regex",
+      "f1": 1.0,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0
+    }
+  ]
+}

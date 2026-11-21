@@ -29,6 +29,9 @@ OCR_LANG = os.getenv("OCR_LANG", "pol")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:7b")
+LLM_ENABLED = os.getenv("LLM_ENABLED", "0").lower() in {"1", "true", "tak", "yes"}
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "60"))
+LLM_MAX_CHARS = int(os.getenv("LLM_MAX_CHARS", "12000"))
 
 
 def tesseract_cmd() -> str | None:

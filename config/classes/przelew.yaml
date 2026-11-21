@@ -3,6 +3,7 @@ title: Potwierdzenie przelewu
 description: >
   Potwierdzenie wykonania polecenia przelewu bankowego (np. wpisu od
   odwołania lub opłaty skarbowej od pełnomocnictwa).
+
 recognition:
   min_score: 5
   llm_hint: >
@@ -17,3 +18,72 @@ recognition:
     - {pattern: '\bpln\b|\bzł\b', weight: 1}
     - {pattern: 'tytuł|\bopis\b', weight: 1}
     - {pattern: 'zrealizowano|wykonano|zaksięgowano', weight: 1}
+
+# Szkielet wynikowego JSON-a zgodny z oczekiwane-json/przelew.json
+output:
+  przelew_bankowy: {data_operacji: null, kwota: null, na_rachunek: null, numer_transakcji: null, tytul: null, z_rachunku: null}
+
+fields:
+  - name: data_operacji
+    path: przelew_bankowy.data_operacji
+    type: date
+    method: regex
+    description: Data operacji (nie data wydruku potwierdzenia).
+    normalize: [date_pl]
+    validators: [date_iso]
+    patterns:
+      - 'Data\s+(?:transakcji|operacji|wykonania|realizacji|księgowania|waluty)[\s.:]*(<<DATE>>)'
+      # dwie kolumny: "Kwota Data transakcji" / "34,00 zł 26 maja 2026" (lub "PLN 200.00 28.12.2025")
+      - '(?:Kwota|Wartość)(?:\s+\w+)?\s+Data\s+\w+\s+(?:(?:PLN|zł)\s+)?<<AMOUNT>>\s*(?:(?:PLN|zł)\s+)?(<<DATE>>)'
+      - 'w\s+dniu\s+(<<DATE>>)\s+z\s+rachunku'
+
+  - name: kwota
+    path: przelew_bankowy.kwota
+    type: number
+    method: regex
+    description: Kwota przelewu w PLN (liczba, np. 200.0).
+    normalize: [amount]
+    validators: [amount_positive]
+    patterns:
+      - 'Kwota(?:\s+(?:operacji|przelewu|transakcji))?[\s.:]*(?:(?:PLN|zł)\s*)?(<<AMOUNT>>)'
+      - '(?:Kwota|Wartość)(?:\s+\w+)?\s+Data\s+\w+\s+(?:(?:PLN|zł)\s+)?(<<AMOUNT>>)'     # dwie kolumny
+      - 'Wartość[\s.:]*(<<AMOUNT>>)'
+      - 'w\s+kwocie\s+(<<AMOUNT>>)'
+
+  - name: z_rachunku
+    path: przelew_bankowy.z_rachunku
+    method: regex
+    description: Rachunek płatnika (26 cyfr, bez prefiksu PL).
+    normalize: [account]
+    validators: [iban_pl]
+    patterns:
+      - '(?s)(?:Rachunek\s+(?:zleceniodawcy|obciążany|nadawcy|płatnika|do\s+obciążenia)|Z\s+rachunku)\b.{0,120}?(<<ACCOUNT>>)'
+      - 'z\s+rachunku(?:\s+nr)?\s*:?\s*(<<ACCOUNT>>)'
+      - {regex: '(<<ACCOUNT>>)[ \t]+(<<ACCOUNT>>)', group: 1}
+
+  - name: na_rachunek
+    path: przelew_bankowy.na_rachunek
+    method: regex
+    description: Rachunek odbiorcy (26 cyfr, bez prefiksu PL).
+    normalize: [account]
+    validators: [iban_pl]
+    patterns:
+      - '(?s)(?:Rachunek\s+(?:odbiorcy|beneficjenta|uznawany|adresata)|Na\s+rachunek)\b.{0,120}?(<<ACCOUNT>>)'
+      - 'na\s+rachunek(?:\s+nr)?\s*:?\s*(<<ACCOUNT>>)'
+      - {regex: '(<<ACCOUNT>>)[ \t]+(<<ACCOUNT>>)', group: 2}
+
+  - name: numer_transakcji
+    path: przelew_bankowy.numer_transakcji
+    method: regex
+    description: Numer transakcji / numer referencyjny operacji.
+    patterns:
+      - '(?:Numer\s+referencyjny(?:\s+operacji)?|Nr\s+ref\.?(?:\s+operacji)?|Identyfikator\s+operacji|Numer\s+transakcji(?:\s+operacji)?)[\s.:]*((?-i:[A-Z0-9]{8,}))'
+      - '\b(CEN\d{9,})'
+
+  - name: tytul
+    path: przelew_bankowy.tytul
+    method: regex
+    description: Tytuł (opis) przelewu w całości.
+    normalize: [ws, strip_quotes]
+    patterns:
+      - '(?s)\b(?:Tytuł\s+przelewu|Tytułem|Tytuł|Opis(?:\s+operacji)?)\b\s*:?\s*(.+?)(?=\n\s*(?:Kwota|Status|Data|Numer|Nr\b|Nadawca|Rachunek|Waluta|Kanał|Opłata|Identyfikator|Typ|Tryb|Szczegóły|Bank|Odbiorca|Adresat|Płatnik|Dokument|Potwierdzenie|Zleceniodawca|Beneficjent|Zrealizowano|Wykonano|W\s+razie|Wartość|Dane|Z\s+rachunku|Na\s+rachunek|Godz|Z\s+poważaniem|Dział)|\Z)'

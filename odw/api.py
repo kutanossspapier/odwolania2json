@@ -1,4 +1,4 @@
-"""Serwer WWW (FastAPI): strona podglądu + API.
+"""Serwer WWW (FastAPI): strona + API.
 
 Uruchomienie:  uruchom.bat   (albo: python -m uvicorn odw.api:app --port 8000)
 """
@@ -8,70 +8,84 @@ import tempfile
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import settings
 from .classes import load_classes
-from .classify import HEAD_PAGES, classify
-from .extract import extract_pdf
+from .classify import HEAD_PAGES
+from .crosscheck import run_checks
+from .pipeline import process
 
 app = FastAPI(title="Odwołania2json")
 WEB = settings.ROOT / "web"
 DANE = settings.ROOT.parent / "dane-uzp" / "dane"
 TRUE = {"odwolanie.pdf": "odwolanie", "pelnomocnictwo.pdf": "pelnomocnictwo",
         "potwierdzenie_przelewu.pdf": "przelew"}
+LOW_CONFIDENCE = 0.75
 
 
-def _analyze_path(path: Path, display_name: str) -> dict:
+def _result_payload(path: Path, display_name: str) -> dict:
     t0 = time.perf_counter()
-    doc = extract_pdf(path)
-    t1 = time.perf_counter()
     classes = load_classes()
-    res = classify(doc, classes)
-    t2 = time.perf_counter()
-    by_name = {c.name: c for c in classes}
-    cls = by_name.get(res.class_name)
+    res = process(path, classes)
+    ms = round((time.perf_counter() - t0) * 1000)
+    cl = res.classification
+    cls = next((c for c in classes if c.name == cl.class_name), None)
+    fields = [f.to_dict() for f in res.extraction.fields] if res.extraction else []
+    for f in fields:
+        f["to_check"] = f["status"] == "brak" or f["confidence"] < LOW_CONFIDENCE
     return {
         "filename": display_name,
-        "pages": [{"number": p.number, "chars": len(p.text), "ocr": p.ocr,
-                   "width": p.width, "height": p.height, "words": len(p.words),
-                   "used_for_classification": p.number <= HEAD_PAGES} for p in doc.pages],
-        "used_ocr": doc.used_ocr,
-        "warnings": doc.warnings,
-        "text": [{"page": p.number, "text": p.text[:6000]} for p in doc.pages[:5]],
+        "pages": [{"number": p.number, "width": p.width, "height": p.height, "chars": len(p.text),
+                   "ocr": p.ocr, "used_for_classification": p.number <= HEAD_PAGES}
+                  for p in res.doc.pages],
+        "used_ocr": res.doc.used_ocr,
+        "warnings": res.doc.warnings,
         "classification": {
-            "class_name": res.class_name,
-            "title": cls.title if cls else None,
-            "yaml_file": cls.file if cls else None,
-            "confidence": res.confidence,
-            "uncertain": res.uncertain,
-            "reason": res.reason,
-            "scores": res.scores,
-            "thresholds": res.thresholds,
-            "details": res.details,
+            "class_name": cl.class_name, "title": cls.title if cls else None,
+            "yaml_file": cls.file if cls else None, "confidence": cl.confidence,
+            "uncertain": cl.uncertain, "reason": cl.reason, "scores": cl.scores,
+            "thresholds": cl.thresholds, "details": cl.details,
             "titles": {c.name: c.title for c in classes},
         },
-        "timing_ms": {"extract": round((t1 - t0) * 1000), "classify": round((t2 - t1) * 1000)},
+        "fields": fields,
+        "json": res.json,
+        "llm_fields": res.llm_fields,
+        "text": [{"page": p.number, "text": p.text[:6000]} for p in res.doc.pages[:5]],
+        "timing_ms": ms,
     }
+
+
+@app.get("/api/status")
+def api_status():
+    return {"llm_enabled": settings.LLM_ENABLED, "llm_model": settings.LLM_MODEL if settings.LLM_ENABLED else None,
+            "mode": "regex + LLM" if settings.LLM_ENABLED else "tylko regex",
+            "low_confidence": LOW_CONFIDENCE}
 
 
 @app.get("/api/classes")
 def api_classes():
     return [{"name": c.name, "title": c.title, "file": c.file, "description": c.description.strip(),
-             "min_score": c.min_score, "keywords": [{"pattern": k.regex.pattern, "weight": k.weight}
-                                                   for k in c.keywords]}
+             "min_score": c.min_score,
+             "keywords": [{"pattern": k.regex.pattern, "weight": k.weight} for k in c.keywords],
+             "fields": [{"name": f.name, "path": f.path, "method": f.method, "type": f.type,
+                         "description": f.description, "patterns": len(f.patterns)} for f in c.fields]}
             for c in load_classes()]
 
 
 @app.get("/api/samples")
 def api_samples():
+    """Przykładowe komplety z danych UZP: [{id: 'przyklad_01', files: [...]}] + negatywy."""
     out = []
-    for pdf in sorted(DANE.glob("przyklad_*/*.pdf")) + sorted((DANE / "negatywne").glob("*.pdf")):
-        rel = pdf.relative_to(DANE).as_posix()
-        out.append({"id": rel, "label": rel, "truth": TRUE.get(pdf.name),
-                    "negative": pdf.parent.name == "negatywne" or pdf.name not in TRUE})
+    for d in sorted(DANE.glob("przyklad_*")):
+        files = [{"id": f"{d.name}/{p.name}", "name": p.name, "truth": TRUE.get(p.name)}
+                 for p in sorted(d.glob("*.pdf"))]
+        out.append({"id": d.name, "files": files})
+    neg = [{"id": f"negatywne/{p.name}", "name": p.name, "truth": None}
+           for p in sorted((DANE / "negatywne").glob("*.pdf"))]
+    out.append({"id": "negatywne", "files": neg})
     return out
 
 
@@ -87,20 +101,26 @@ def api_sample_pdf(id: str):
     return FileResponse(_sample_path(id), media_type="application/pdf")
 
 
-@app.get("/api/analyze-sample")
-def api_analyze_sample(id: str):
-    return _analyze_path(_sample_path(id), id)
+@app.get("/api/process-sample")
+def api_process_sample(id: str):
+    return _result_payload(_sample_path(id), id.split("/")[-1])
 
 
-@app.post("/api/analyze")
-async def api_analyze(file: UploadFile = File(...)):
+@app.post("/api/process")
+async def api_process(file: UploadFile = File(...)):
     data = await file.read()
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "To nie wygląda na plik PDF")
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "upload.pdf"
         p.write_bytes(data)
-        return _analyze_path(p, file.filename or "plik.pdf")
+        return _result_payload(p, file.filename or "plik.pdf")
+
+
+@app.post("/api/crosscheck")
+def api_crosscheck(docs: list[dict] = Body(...)):
+    """docs: [{name, class_name, json}] -> wyniki walidacji między dokumentami."""
+    return run_checks(docs)
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

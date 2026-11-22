@@ -56,6 +56,8 @@ fields:
     patterns:
       # "Mocodawca: NAZWA, ul. ..." (etykieta nie należy do nazwy)
       - '^Mocodawc\w*\s*:\s*([^\n,]{3,120}?),\s*(?:ul\.|al\.|pl\.|os\.)'
+      # skany: "Nazwa firmy z siedzibą w Mieście (kod), ul. ..." - nazwa kończy się przed "z siedzibą"
+      - '(?m)^\s*(?!PEŁNOMOCNICTWO)([^\n,]{3,100}?)\s+z\s+siedzibą\s+w\b'
       # konsorcjum: blok zaczyna się od nazwy (może się zawijać), po niej ", ul. ..."
       - '\A\s*(?!PEŁNOMOCNICTWO)([^,]{3,120}?),\s*(?:ul\.|al\.|pl\.|os\.)'
       # osoba fizyczna: "... prowadzący działalność gospodarczą pod firmą NAZWA, ul. ..."
@@ -135,6 +137,8 @@ fields:
       - '^(<<PERSON>>)(?:[ \t]+(?:adw\.|r\.\s*pr\.)[^\n]*)?\n(?:[^\n]*pieczęć[^\n]*\n)?\s*<<ROLE>>'
       # dwa podpisy obok siebie: "Imię Nazwisko  Imię Nazwisko" nad dwiema funkcjami
       - {regex: '^(<<PERSON>>)[ \t]+(<<PERSON>>)[ \t]*\n(?:[^\n]*pieczęć[^\n]*\n)?\s*<<ROLE>>', groups: [1, 2]}
+      # skany: "reprezentowana przez: Imię Nazwisko — Prezes Zarządu, Imię Nazwisko — Członek Zarządu (dalej: ...)"
+      - '(?:reprezentowan\w+\s+przez\s*:?|,)\s*([A-ZŁŚŻŹĆ][\w’''-]+\s+[A-ZŁŚŻŹĆ][\w’''-]+)\s*[—–-]\s*<<ROLE>>'
 
   - name: pelnomocnicy
     path: pelnomocnicy[].imie_nazwisko
@@ -146,12 +150,19 @@ fields:
       - '<<TITLE>>\s+([^(),]+?)\s*(?:,\s*PESEL\s*\d{11}\s*)?(?:\(|,\s*)nr\s+wpisu'
       # układ dwukolumnowy: "... r. pr. Imię Nazwisko" / "ul. ... nr wpisu WA ..." lub "NIP ... nr wpisu ..."
       - '(?:adw\.|r\.\s*pr\.)\s+([^\n(),]+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.|NIP\s*\d|KRS\s*\d)[^\n]*nr\s+wpisu'
+      # skany: "1. Imię Nazwisko — adwokat, nr wpisu ..." oraz "Imię Nazwisko (radca prawny, nr wpisu ..., PESEL: ...)"
+      - '(?m)^\s*(?:\d+[.)]\s*)?((?-i:<<NAME>>))\s*[—–-]\s*(?:adwokat|radca\s+prawny|r\.\s*pr\.|adw\.)'
+      - '(?m)^\s*(?:\d+[.)]\s*)?((?-i:<<NAME>>))\s*\((?:adwokat|radca\s+prawny)'
+      # skany: same imiona i nazwiska w kolejnych liniach po "udziela pełnomocnictwa:" (do "do reprezentowania")
+      - regex: '(?s)udziela\w*\s+pełnomocnictwa\s*:\s*\n(.{3,400}?)\n\s*do\s+reprezentowania'
+        split: '\n'
+        item: '^\s*(?:\d+[.)]\s*)?((?-i:<<NAME>>))\s*$'
       # lista po przecinkach bez numerów wpisu: "reprezentowana przez: adw. A B, r. pr. C D"
       - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^\n]+(?:\n\s*<<TITLE>>[^\n]+)*)'
         split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
         item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
       # ostatnia deska ratunku: tytuł + imię i nazwisko gdziekolwiek
-      - '<<TITLE>>\s+((?-i:<<NAME>>))'
+      - {regex: '<<TITLE>>\s+((?-i:<<NAME>>))', fallback: true}
 
   - name: pelnomocnik_pesel
     llm_fill: false      # null jest tu częstą, poprawną odpowiedzią

@@ -196,6 +196,8 @@ def _matches_multi(spec: FieldSpec, text: str):
     """Dla pól 'multiple': suma trafień ze WSZYSTKICH wzorców, w kolejności występowania."""
     found = []
     for pi, p in enumerate(spec.patterns):
+        if p.fallback and found:        # wzorzec ostatniej szansy: tylko gdy nic wcześniej nie pasuje
+            continue
         for m in p.regex.finditer(text):
             for pos, raw in _raw_values(p, m):
                 v = _finish_value(spec, raw)
@@ -284,8 +286,12 @@ def extract(doc: PdfText, cls: DocClass) -> Extraction:
         elif spec.method == "rules":
             src = scope
             if spec.source_pattern:
-                m = spec.source_pattern.search(scope)
-                src = (m.group(1) if m and m.lastindex else m.group(0)) if m else ""
+                src = ""
+                for sp_ in (spec.source_pattern, *spec.source_alts):      # pierwsze źródło, które pasuje
+                    m = sp_.search(scope)
+                    if m:
+                        src = m.group(1) if m.lastindex else m.group(0)
+                        break
             res.raw = normalize.ws(src)[:200] if src else None
             for r in spec.rules:
                 if r.regex.search(src or ""):

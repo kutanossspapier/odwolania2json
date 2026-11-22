@@ -75,11 +75,11 @@ def test_hallucinated_value_is_rejected_with_warning():
 
 
 def test_llm_values_are_normalized_like_regex_values():
-    text = PRZELEW_BEZ_TYTULU.replace("Rachunek zleceniodawcy: PL43 0463 3766 1291 7568 1186 9204\n", "Z konta PL43 0463 3766 1291 7568 1186 9204\n")
-    fake = FakeClient(json.dumps({"z_rachunku": "PL43 0463 3766 1291 7568 1186 9204"}))
+    text = PRZELEW_BEZ_TYTULU.replace("Kwota 17,00 PLN", "Opłata skarbowa wyniosła 17 zł")   # bez groszy: regex jej nie widzi
+    fake = FakeClient(json.dumps({"kwota": "17 zł"}))
     ex, filled, _ = run_fill("przelew", text, fake)
-    assert filled == ["z_rachunku"]          # regex pominął pole, więc uzupełnia je LLM
-    assert ex.json["przelew_bankowy"]["z_rachunku"] == "43046337661291756811869204"   # bez "PL" i spacji
+    assert filled == ["kwota"]                 # regex pominął pole, więc uzupełnia je LLM
+    assert ex.json["przelew_bankowy"]["kwota"] == 17.0        # znormalizowane do liczby jak wartość z regexa
 
 
 def test_clean_desc_keeps_parentheses_balanced():

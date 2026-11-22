@@ -11,7 +11,8 @@ recognition:
     data i tytuł przelewu.
   keywords:
     - {pattern: 'potwierdzenie\s+(wykonania\s+|realizacji\s+)?(polecenia\s+)?przelewu|polecenie\s+przelewu', weight: 3}
-    - {pattern: 'rachunek\s+(odbiorcy|obciążany|nadawcy|płatnika|beneficjenta|do\s+obciążenia)', weight: 2}
+    - {pattern: 'rachunek\s+(odbiorcy|obciążany|nadawcy|płatnika|beneficjenta|do\s+obciążenia|zleceniodawcy|kontrahenta)', weight: 2}
+    - {pattern: 'potwierdzenie\s+transakcji|przelew\s+krajowy|dane\s+(zleceniodawcy|nadawcy|odbiorcy|kontrahenta)|szczegóły\s+(zlecenia|płatności)', weight: 2}
     - {pattern: '(\bpl\s?)?\d{2}(\s?\d{4}){6}\b', weight: 2}
     - {pattern: 'wykonano\s+przelew|tytuł\s+przelewu|bank\s+potwierdza|numer\s+transakcji|nr\s+ref', weight: 2}
     - {pattern: 'kwota', weight: 1}
@@ -36,8 +37,12 @@ fields:
     validators: [date_iso]
     patterns:
       - 'Data\s+(?:transakcji|operacji|wykonania|realizacji|księgowania|waluty)[\s.:]*(<<DATE>>)'
+      - 'Zlecona\s+data\s+wykonania[\s.:]*(<<DATE>>)'
+      - 'Data\s+operacji[^\n]*\n\s*(<<DATE>>)'                       # skany: data w linii pod etykietą
+      - '\bData\s+(<<DATE>>)\s+wykonania'                            # skany: etykieta rozdzielona
+      - '<<AMOUNT>>\s*(?:PLN|zł)\s+[^\s\d]{0,2}\s*(<<DATE>>)'            # skany: "34,00 PLN 20.05.2026"
       # dwie kolumny: "Kwota Data transakcji" / "34,00 zł 26 maja 2026" (lub "PLN 200.00 28.12.2025")
-      - '(?:Kwota|Wartość)(?:\s+\w+)?\s+Data\s+\w+\s+(?:(?:PLN|zł)\s+)?<<AMOUNT>>\s*(?:(?:PLN|zł)\s+)?(<<DATE>>)'
+      - '(?:Kwota|Wartość)(?:\s+\w+)?\s+Data\s+\w+\s+(?:(?:PLN|zł)\s+)?<<AMOUNT>>\s*(?:(?:PLN|zł)\s+)?[^\s\d]{0,2}\s*(<<DATE>>)'      # OCR: między kwotą a datą bywa szum ("x")
       - 'w\s+dniu\s+(<<DATE>>)\s+z\s+rachunku'
 
   - name: kwota
@@ -52,6 +57,8 @@ fields:
       - '(?:Kwota|Wartość)(?:\s+\w+)?\s+Data\s+\w+\s+(?:(?:PLN|zł)\s+)?(<<AMOUNT>>)'     # dwie kolumny
       - 'Wartość[\s.:]*(<<AMOUNT>>)'
       - 'w\s+kwocie\s+(<<AMOUNT>>)'
+      - '[-–]\s*(<<AMOUNT>>)\s*(?:PLN|zł)'                          # skany: "PRZELEW ELIXIR - ONLINE -17,00 PLN"
+      - '(<<AMOUNT>>)\s*PLN'                                         # skany: kwota bez etykiety
 
   - name: z_rachunku
     path: przelew_bankowy.z_rachunku
@@ -63,6 +70,7 @@ fields:
       - '(?s)(?:Rachunek\s+(?:zleceniodawcy|obciążany|nadawcy|płatnika|do\s+obciążenia)|Z\s+rachunku)\b.{0,120}?(<<ACCOUNT>>)'
       - 'z\s+rachunku(?:\s+nr)?\s*:?\s*(<<ACCOUNT>>)'
       - {regex: '(<<ACCOUNT>>)[ \t]+(<<ACCOUNT>>)', group: 1}
+      - {regex: '(<<ACCOUNT>>)', group: 1}                           # skany: pierwszy numer rachunku w dokumencie
 
   - name: na_rachunek
     path: przelew_bankowy.na_rachunek
@@ -71,9 +79,10 @@ fields:
     normalize: [account]
     validators: [iban_pl]
     patterns:
-      - '(?s)(?:Rachunek\s+(?:odbiorcy|beneficjenta|uznawany|adresata)|Na\s+rachunek)\b.{0,120}?(<<ACCOUNT>>)'
+      - '(?s)(?:Rachunek\s+(?:odbiorcy|beneficjenta|uznawany|adresata|kontrahenta)|Na\s+rachunek(?!\s+obcy))\b.{0,120}?(<<ACCOUNT>>)'
       - 'na\s+rachunek(?:\s+nr)?\s*:?\s*(<<ACCOUNT>>)'
       - {regex: '(<<ACCOUNT>>)[ \t]+(<<ACCOUNT>>)', group: 2}
+      - {regex: '(?s)(<<ACCOUNT>>).{1,500}?(<<ACCOUNT>>)', group: 2}  # skany: drugi numer rachunku w dokumencie
 
   - name: numer_transakcji
     path: przelew_bankowy.numer_transakcji
@@ -89,4 +98,4 @@ fields:
     description: Tytuł (opis) przelewu w całości.
     normalize: [ws, strip_quotes]
     patterns:
-      - '(?s)\b(?:Tytuł\s+przelewu|Tytułem|Tytuł|Opis(?:\s+operacji)?)\b\s*:?\s*(.+?)(?=\n\s*(?:Kwota|Status|Data|Numer|Nr\b|Nadawca|Rachunek|Waluta|Kanał|Opłata|Identyfikator|Typ|Tryb|Szczegóły|Bank|Odbiorca|Adresat|Płatnik|Dokument|Potwierdzenie|Zleceniodawca|Beneficjent|Zrealizowano|Wykonano|W\s+razie|Wartość|Dane|Z\s+rachunku|Na\s+rachunek|Godz|Z\s+poważaniem|Dział)|\Z)'
+      - '(?s)\b(?:Tytuł\s+przelewu|Tytułem|Tytuł|Szczegóły\s+płatności|Opis(?:\s+operacji)?(?!\s+Kwota))\b\s*:?\s*(.+?)(?:\s\.)?(?=\n\s*(?:Kwota|Status|Data|Numer|Nr\b|Nadawca|Rachunek|Waluta|Kanał|Opłata|Identyfikator|Typ|Tryb|Szczegóły|Bank|Odbiorca|Adresat|Płatnik|Dokument|Potwierdzenie|Zleceniodawca|Beneficjent|Zrealizowano|Wykonano|W\s+razie|Wartość|Dane|Z\s+rachunku|Na\s+rachunek|Godz|Z\s+poważaniem|Dział|Signature)|\Z)'

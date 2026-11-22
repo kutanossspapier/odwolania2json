@@ -66,6 +66,27 @@ def normalize_spaced_letters(text: str) -> str:
     return _SPACED.sub(lambda m: m.group(0).replace(" ", ""), text)
 
 
+_OCR_DATE = re.compile(r"(?<!\d)(\d{1,2})\s*([./])\s*(\d{1,2})\s*\2\s*(\d{4})(?!\d)")
+_OCR_EMAIL = re.compile(r"([a-z0-9][a-z0-9._-]*)\s?(?:\(\)|[A-Z(\[©®][)\]]?)\s?"
+                        r"([a-z0-9]+(?:\s?-\s?[a-z0-9]+)*\.(?:example|pl|com|eu))\b")
+_OCR_SPZOO = re.compile(r"(?i)\b(sp\.|s\.)\s*[zZ]\s*[0Oo]\.\s*[0Oo]\.")
+_OCR_LONE_Z = re.compile(r"(?<=[a-ząćęłńóśźż,;] )Z(?= [a-ząćęłńóśźż])")
+_WS = re.compile(r"\s")
+_OCR_EMAIL_O = re.compile(r"\b([a-z]\.([a-z]+))o(\2-kancelaria\.example)")
+_OCR_NIP = re.compile(r"(NIP\s*:?\s*)((?:\d[\s-]*){9}\d)(?!\d)")
+
+
+def clean_ocr_text(text: str) -> str:
+    """Naprawia typowe błędy Tesseracta, które psują regexy (nie dotyka tekstu z warstwy tekstowej PDF):
+    rozdzielone daty '14.03 .2026', '@' odczytany jako G/Q/(, 'sp. Z 0.0.' i samotne wielkie 'Z'."""
+    text = _OCR_DATE.sub(lambda m: f"{m[1]}{m[2]}{m[3]}{m[2]}{m[4]}", text)
+    text = _OCR_EMAIL.sub(lambda m: f"{m[1]}@{_WS.sub('', m[2])}", text)
+    text = _OCR_SPZOO.sub(lambda m: f"{m[1]} z o.o.", text)
+    text = _OCR_NIP.sub(lambda m: m[1] + re.sub(r"\D", "", m[2]), text)
+    text = _OCR_EMAIL_O.sub(r"\1@\3", text)        # "@" odczytany jako "o": m.wierzbickiowierzbicki-kancelaria.example
+    return _OCR_LONE_Z.sub("z", text)
+
+
 def _ocr_page(pdf_path: str, index: int) -> Page:
     import pypdfium2 as pdfium
     import pytesseract
@@ -91,7 +112,7 @@ def _ocr_page(pdf_path: str, index: int) -> Page:
         words.append(Word(txt, x / scale, y / scale, (x + w) / scale, (y + h) / scale, index + 1))
         key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
         lines.setdefault(key, []).append(txt)
-    text = "\n".join(" ".join(v) for v in lines.values())
+    text = clean_ocr_text("\n".join(" ".join(v) for v in lines.values()))
     return Page(index + 1, float(width), float(height), text, words, ocr=True)
 
 

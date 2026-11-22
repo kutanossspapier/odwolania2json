@@ -30,11 +30,11 @@ sections:
     end: '^\s*Działając\s'
     max_chars: 6000
   odwolujacy:
-    start: '^\s*Odwołując\w+\s*:'
-    end: '^\s*(?:Zamawiając\w+\s*[(:]|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
+    start: '^\W{0,3}\s*(?:Odwołując\w+|Konsorcjum\s+wykonawców)\s*:'     # \W{0,3}: śmieci OCR przed etykietą („ * itp.)
+    end: '^\W{0,3}\s*(?:Zamawiając\w+\s*[(:]|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
   zamawiajacy:              # przy kilku zamawiających blok = jeden zamawiający ("1) ...", "2) ...")
-    start: '^\s*Zamawiając\w+\s*[(:]'
-    end: '^\s*(?:Odwołując\w+\s*:|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
+    start: '^\W{0,3}\s*Zamawiając\w+\s*[(:]'
+    end: '^\W{0,3}\s*(?:Odwołując\w+\s*:|ODWOŁANIE\s*$|Prezes\b|dotyczy\s*:|Wykonawca\s+wybrany|Uczestnik|Przystępując)'
     split: '^\s*\d+\)\s'
 
 # Nazwy grup pól na ekranie (pierwszy człon ścieżki w JSON)
@@ -94,6 +94,9 @@ fields:
     patterns:
       - '^\s*Zamawiając\w+\s+w\s+dniu\s+(<<DATE>>)'      # zdanie otwierające akapit
       - 'Zamawiając\w+\s+w\s+dniu\s+(<<DATE>>)'
+      # szablon skanów: "Informacja o zaskarżonej czynności została opublikowana/przekazana ... w dniu D"
+      - 'Informacj\w+\s+o\s+zaskarżon\w+\s+czynności\s+została\s+\w+(?:\s+Odwołującemu)?\s+w\s+dniu\s+(<<DATE>>)'
+      - '(?s)wobec\s*:.{0,400}?(?:w\s+dniu|pismem\s+[zZ])\s+(<<DATE>>)'      # data w pierwszym punkcie "wobec:"
 
   - name: czynnosc_powod_id
     path: OdwolanieKIO.czynnosc_powod_id
@@ -104,15 +107,18 @@ fields:
       Reguły sprawdzane po kolei, pierwsza pasująca wygrywa; niejednoznaczne
       przypadki trafią do LLM.
     # pierwsze zdanie po dacie (do kropki + wielkiej litery; kropki w "S.A.", "sp.", "nr" pomijamy)
-    source_pattern: '(?s)^\s*Zamawiając\w+\s+w\s+dniu\s+<<DATE>>\s*(?:roku|r\.)?,?\s+(.{0,300}?)(?:(?<![A-Za-z]\.[A-Za-z])(?<!\bsp)(?<!\bnr)(?<!\bpkt)(?<!\bust)(?<!\bart)(?<!\bz)\.\s+(?=[A-ZŁŚŻ])|\Z)'
+    source_pattern:
+     - '(?s)^\s*Zamawiając\w+\s+w\s+dniu\s+<<DATE>>\s*(?:roku|r\.)?,?\s+(.{0,300}?)(?:(?<![A-Za-z]\.[A-Za-z])(?<!\bsp)(?<!\bnr)(?<!\bpkt)(?<!\bust)(?<!\bart)(?<!\bz)\.\s+(?=[A-ZŁŚŻ])|\Z)'
+     # szablon skanów: pierwszy punkt po "wnoszę odwołanie wobec:" ("1. czynności wykluczenia ...;")
+     - '(?s)wobec\s*:?.{0,60}?[1Il]\s*[.)]?\s+(.{0,300}?)(?:;|\n\s*[2-9Z]\s*[.)])'
     rules:
       - {pattern: 'zaniecha\w*\s+odrzucenia|nie\s+odrzucił', value: 7}
       - {pattern: 'zaniecha\w*\s+wykluczenia|nie\s+wykluczył', value: 8}
       - {pattern: 'zaniecha\w*\s+unieważnienia|nie\s+unieważni\w+', value: 10}
-      - {pattern: 'projektowan\w+\s+postanowieni\w+', value: 12}
+      - {pattern: 'projektowan\w+\s+postanowie\w+', value: 12}
       - {pattern: 'opis\w*\s+przedmiotu', value: 11}
-      - {pattern: 'zmodyfikował|zmienił\s+treść', value: 5}
-      - {pattern: 'odpowiedzi|wyjaśnieni\w+', value: 6}
+      - {pattern: 'zmodyfikował|zmienił\s+treść|modyfikacj\w+', value: 5}
+      - {pattern: 'odpowiedzi|wyjaśnie\w+', value: 6}
       - {pattern: 'opublikował|specyfikacj\w+', value: 4}
       - {pattern: 'odrzuc\w+', value: 1}
       - {pattern: 'wyklucz\w+', value: 3}
@@ -147,7 +153,8 @@ fields:
     normalize: [ws]
     patterns:
       - 'Lider\s+Konsorcjum\s*:\s*\n([^\n]+)'
-      - '\A\s*([^\n]+)'
+      - '\A\s*1\)\s*([^\n(]+?)\s*(?:\(Lider[^\n]*)?$'                    # konsorcjum: "1) Firma (Lider Konsorcjum)"
+      - '\A\s*([^\n]*?\s(?:w|we|i|oraz|nad|pod|dla|im\.)\n[^\n]+|[^\n]+)'   # nazwa może być złamana na dwie linie
 
   - name: odwolujacy_krs
     llm_fill: false      # null jest tu częstą, poprawną odpowiedzią
@@ -214,12 +221,8 @@ fields:
     description: Wszyscy pełnomocnicy odwołującego (informacyjnie - format UZP zawiera tylko pierwszego).
     normalize: [ws]
     patterns:
-      - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^
-]+(?:
-\s*<<TITLE>>[^
-]+)*)'
-        split: '\s*(?:,|;|
-|\s+oraz\s+|\s+i\s+)\s*'
+      - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^\n]+(?:\n\s*<<TITLE>>[^\n]+)*)'
+        split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
         item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
       - '<<TITLE>>\s+((?-i:<<NAME>>))'
 
@@ -231,6 +234,9 @@ fields:
     normalize: [ws]
     patterns:
       - '(?s)adres\s+do\s+korespondencji\s*:\s*(.+?),\s*(?:ul\.|al\.|pl\.|os\.)'
+      - '(?s)adres\s+do\s+korespondencji\s*:\s*(.+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.)'      # adres w osobnej linii (skany)
+      - '(?s)adres\s+do\s+korespondencji\s*\S?\s*\n\s*(.+?)\s*\n\s*(?:ul\.|al\.|pl\.|os\.)'   # OCR: zamiast ":" jakiś znak
+      - '(?m)^[^\n\w]{0,3}(Kancelari\w+[^\n]{3,100}?)\s*$'                                  # linia z nazwą kancelarii (bez etykiety)
 
   - name: pelnomocnik_mail
     path: Odwolujacy[0].pelnomocnik.mail
@@ -251,7 +257,7 @@ fields:
     normalize: [ws]
     patterns:
       - '\A[^\n]*(?:Lider|Partner|prowadząc)[^\n]*:\s*\n([^\n]+)'
-      - '\A\s*([^\n]+)'
+      - '\A\s*([^\n]*?\s(?:w|we|i|oraz|nad|pod|dla|im\.)\n[^\n]+|[^\n]+)'
 
   - name: zamawiajacy_krs
     llm_fill: false      # null jest tu częstą, poprawną odpowiedzią

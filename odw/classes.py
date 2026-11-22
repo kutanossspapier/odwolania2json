@@ -32,6 +32,7 @@ class PatternSpec:
     groups: list[int] | None = None   # kilka wartości z jednego trafienia (np. dwa podpisy)
     split: re.Pattern | None = None   # dzieli przechwycony tekst na listę (np. po przecinkach)
     item: re.Pattern | None = None    # element listy musi pasować; grupa 1 = wartość (pozwala pominąć tytuły, śmieci)
+    fallback: bool = False            # pole 'multiple': użyj tylko, gdy wcześniejsze wzorce nic nie znalazły
 
 
 @dataclass
@@ -67,6 +68,7 @@ class FieldSpec:
     if_found: object = None        # wartość stała, gdy wzorzec znaleziony
     default: object = None         # wartość, gdy nie znaleziono
     source_pattern: re.Pattern | None = None   # rules: skąd brać tekst do reguł
+    source_alts: tuple = ()                    # rules: kolejne źródła, gdy poprzednie nie pasują
     rules: list[RuleSpec] = field(default_factory=list)
     from_field: str | None = None  # lookup: z którego pola
     table: dict = field(default_factory=dict)
@@ -118,7 +120,8 @@ def _parse_field(d: dict) -> FieldSpec:
         else:
             pats.append(PatternSpec(_compile(p["regex"], cs), int(p.get("group", 1)), p.get("groups"),
                                     _compile(p["split"], cs) if p.get("split") else None,
-                                    _compile(p["item"], cs) if p.get("item") else None))
+                                    _compile(p["item"], cs) if p.get("item") else None,
+                                    bool(p.get("fallback", False))))
     rules = [RuleSpec(_compile(r["pattern"], cs), r["value"]) for r in d.get("rules", [])]
     sp = d.get("source_pattern")
     return FieldSpec(
@@ -129,7 +132,8 @@ def _parse_field(d: dict) -> FieldSpec:
         per_block=bool(d.get("per_block", False)), min_blocks=int(d.get("min_blocks", 1)),
         llm_fill=bool(d.get("llm_fill", True)),
         if_found=d.get("if_found"), default=d.get("default"),
-        source_pattern=_compile(sp, cs) if sp else None, rules=rules,
+        source_pattern=_compile(sp[0] if isinstance(sp, list) else sp, cs) if sp else None,
+        source_alts=tuple(_compile(x, cs) for x in sp[1:]) if isinstance(sp, list) else (), rules=rules,
         from_field=d.get("from"), table={str(k): v for k, v in d.get("table", {}).items()},
     )
 

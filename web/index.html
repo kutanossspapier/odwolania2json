@@ -368,19 +368,13 @@ function fmt(v){ if (v === null || v === undefined) return null; return Array.is
 /* porównanie pola z oczekiwanym JSON-em UZP (tylko dla przykładów z danych UZP) */
 function uzp(f, d){
   if (!d.expected || !Object.keys(d.expected).length) return null;
-  // pola informacyjne (poza JSON-em UZP) porównujemy z odpowiednikiem we wzorcu; nadmiar pokazujemy jako "spoza wzorca"
-  const ALIAS = { "_info.pelnomocnicy": "Odwolujacy[0].pelnomocnik.imie_nazwisko" };
-  const info = f.path.startsWith("_");
-  if (info && !ALIAS[f.path]) return null;
-  const path = info ? ALIAS[f.path] : f.path;
+  const path = f.path;
   const rx = new RegExp("^" + path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\[\\\]/g, "\\[\\d+\\]") + "$");
   const exp = Object.entries(d.expected).filter(([k, v]) => rx.test(k) && v !== null).map(([, v]) => v);
   const flat = v => Array.isArray(v) ? v.flatMap(flat) : (v === null || v === undefined ? [] : [v]);
   const norm = v => typeof v === "number" ? String(Math.round(v * 1e6) / 1e6) : String(v).replace(/\s+/g, " ").trim().toLowerCase();
-  const all = flat(f.value);
-  const used = all, extra = [];      // porównujemy całość: jeśli pole pokazuje więcej niż wzorzec, to jest różnica (✗)
-  const got = used.map(norm).sort(), want = exp.map(norm).sort();
-  return { exp, extra, same: got.length === want.length && got.every((v, i) => v === want[i]) };
+  const got = flat(f.value).map(norm).sort(), want = exp.map(norm).sort();
+  return { exp, same: got.length === want.length && got.every((v, i) => v === want[i]) };
 }
 function renderFields(d){
   const r = d.result, c = r.classification;
@@ -413,7 +407,7 @@ function renderFields(d){
       <div class="name">${esc(f.name.replaceAll("_", " "))} <code style="color:var(--muted)">${esc(f.path)}</code></div>
       <div class="val ${val === null ? "none" : ""}">${val === null ? (f.status === "llm" ? "oczekuje na LLM" : "— brak —") : esc(val)}</div>
       <div class="side"><button class="fixbtn" data-fix="${i}" title="Podaj poprawną wartość i dowiedz się, co zmienić w konfiguracji">Popraw</button>${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
-      ${(() => { const x = uzp(f, d); return x && !x.same ? `<div class="warnline" style="color:var(--bad)">✗ wzorzec UZP oczekuje: <b>${esc(x.exp.join(", ") || "— puste —")}</b></div>` : (x ? `<div class="warnline" style="color:var(--ok)">✓ zgodne z wzorcem UZP</div>` : "") + (x && x.extra.length ? `<div class="warnline" style="color:var(--warn, #b45309)">⚠ spoza wzorca UZP (UZP oczekuje tylko pierwszej osoby): <b>${esc(x.extra.join(", "))}</b></div>` : ""); })()}
+      ${(() => { const x = uzp(f, d); return x && !x.same ? `<div class="warnline" style="color:var(--bad)">✗ wzorzec UZP oczekuje: <b>${esc(x.exp.join(", ") || "— puste —")}</b></div>` : (x ? `<div class="warnline" style="color:var(--ok)">✓ zgodne z wzorcem UZP</div>` : ""); })()}
       ${f.warnings.length ? `<div class="warnline">⚠ ${f.warnings.map(esc).join("; ")}</div>` : ""}</div>`;
   });
   h += `<details class="box"><summary>Wynikowy JSON</summary>

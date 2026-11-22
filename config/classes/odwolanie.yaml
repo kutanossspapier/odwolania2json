@@ -43,7 +43,6 @@ group_labels:
   Odwolujacy: Odwołujący
   Zamawiajacy: Zamawiający
   ZamowieniePubliczne: Zamówienie publiczne
-  _info: Informacje dodatkowe (poza JSON-em UZP)
 
 # Szkielet wynikowego JSON-a zgodny z oczekiwane-json/odwolanie.json
 output:
@@ -209,21 +208,6 @@ fields:
         split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
         item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
       # pierwszy pełnomocnik wskazany tytułem (także gdy brakuje słowa "reprezentowana")
-      - '<<TITLE>>\s+((?-i:<<NAME>>))'
-
-  - name: pelnomocnicy_wszyscy
-    path: _info.pelnomocnicy        # "_" = pole informacyjne, nie trafia do JSON-a UZP (tam jest tylko pierwszy pełnomocnik)
-    method: regex
-    multiple: true
-    section: odwolujacy
-    case_sensitive: true
-    llm_fill: false
-    description: Wszyscy pełnomocnicy odwołującego (informacyjnie - format UZP zawiera tylko pierwszego).
-    normalize: [ws]
-    patterns:
-      - regex: 'reprezentowan\w+\s+przez\s*:?\s*(?:pełnomocni\w+\s*:?\s*)?([^\n]+(?:\n\s*<<TITLE>>[^\n]+)*)'
-        split: '\s*(?:,|;|\n|\s+oraz\s+|\s+i\s+)\s*'
-        item: '^\s*(?:<<TITLE>>\s*)?(?!Kancelari|Spółk|Firm)((?-i:<<NAME>>))\s*(?:\(.*)?$'
       - '<<TITLE>>\s+((?-i:<<NAME>>))'
 
   - name: pelnomocnik_nazwa

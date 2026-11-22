@@ -64,10 +64,6 @@ def main(argv=None) -> int:
                 print(f"    {ok_c}✓{rst} {full} = {e!r}")
         warned = [f for f in (res.extraction.fields if res.extraction else []) if f.warnings]
         n_warn += len(warned)
-        for f in (res.extraction.fields if res.extraction else []):     # pola informacyjne spoza JSON-a UZP
-            if f.path == "_info.pelnomocnicy" and isinstance(f.value, list) and len(f.value) > 1:
-                n_warn += 1
-                print(f"    {warn_c}⚠{rst} {f.path} = {f.value!r}: więcej osób niż we wzorcu UZP (tam tylko pierwsza)")
         for f in warned:                       # wartość może się zgadzać ze wzorcem, a walidator i tak ją podważa
             print(f"    {warn_c}⚠{rst} {f.path} = {f.value!r}: {'; '.join(f.warnings)}")
         shown = set()

@@ -100,6 +100,8 @@ def _nullify(o):
 
 def set_path(root: dict, path: str, value, item: int | tuple | None = None) -> None:
     """Ustawia wartość pod ścieżką; kolejne '[]' to kolejne indeksy z `item` (liczba lub krotka)."""
+    if path.startswith("_"):      # pola informacyjne (np. _info.pelnomocnicy): widoczne w UI, poza JSON-em UZP
+        return
     toks = _parse_path(path)
     idxs = list(item) if isinstance(item, tuple) else [item or 0]
     any_i = 0

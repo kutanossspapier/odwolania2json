@@ -232,3 +232,15 @@ def test_odwolanie_pelnomocnik_w_roznych_zapisach(zapis):
             + zapis + "\nZamawiający:\nX S.A.\nODWOŁANIE\n")
     j = extract(PdfText("t.pdf", [Page(1, 595, 842, text, [])]), cls).json["Odwolujacy"][0]
     assert j["pelnomocnik"]["imie_nazwisko"] == "Patrycja Jakaś" and j["przez-pelnomocnika"] == 1
+
+
+def test_wszyscy_pelnomocnicy_sa_widoczni_ale_poza_json_uzp():
+    """Format UZP ma w odwołaniu tylko pierwszego pełnomocnika; wszyscy są pokazani informacyjnie."""
+    cls = {c.name: c for c in load_classes()}["odwolanie"]
+    text = ("Odwołujący:\nBelmoria S.A.\nul. Z 78, 90-803 Łódź\nKRS: 9999405188, NIP: 9999284065\n"
+            "reprezentowana przez: r. pr. Aleksandra Marciniak, r. pr. Jolanta Zajkowski\nZamawiający:\nX S.A.\nODWOŁANIE\n")
+    ex = extract(PdfText("t.pdf", [Page(1, 595, 842, text, [])]), cls)
+    by = {f.name: f for f in ex.fields}
+    assert by["pelnomocnicy_wszyscy"].value == ["Aleksandra Marciniak", "Jolanta Zajkowski"]
+    assert ex.json["Odwolujacy"][0]["pelnomocnik"]["imie_nazwisko"] == "Aleksandra Marciniak"
+    assert "_info" not in ex.json

@@ -1,0 +1,12 @@
+{
+  "OdwolanieKIO": {"data": "2026-11-05", "czynnosc_dzien": "2026-10-28", "czynnosc_powod_id": 9,
+                   "czynnosc_opis": "Decyzja o unieważnieniu postępowania", "miejscowosc": "Gdynia"},
+  "Odwolujacy": [{"krs": "9997001122", "nazwa": "Nordwind Inżynieria Drogowa S.A.", "nip": "9998887766",
+                  "regon": "999556677", "przez-pelnomocnika": 1,
+                  "pelnomocnik": {"imie_nazwisko": "Katarzyna Wójcik-Malinowska", "nazwa": "Kancelaria Prawna Wójcik i Malinowska",
+                                  "mail": "kancelaria@wojcik.example"}}],
+  "Zamawiajacy": [{"krs": "9990011223", "nazwa": "Powiatowy Zarząd Dróg w Kamionce Dolnej", "nip": "9994445566",
+                   "regon": "999112233", "prowadzacy_postepowanie": null}],
+  "ZamowieniePubliczne": {"numer_bzp": "2026/BZP00123456", "numer_postepowania": "PZD.271.12.2026", "numer_ted": "777321-2026",
+                          "tytul": "Przebudowa drogi powiatowej nr 2917L na odcinku Kamionka Dolna – Zawada wraz z budową chodnika"}
+}

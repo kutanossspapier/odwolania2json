@@ -248,7 +248,8 @@ async function addSample(f){
   busy("analizuję " + f.name + "…");
   try {
     const r = await (await fetch("/api/process-sample?" + qs(state.llm) + "&id=" + encodeURIComponent(f.id))).json();
-    pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true, sampleId: f.id });
+    let expected = null; try { expected = await (await fetch("/api/sample-expected?id=" + encodeURIComponent(f.id))).json(); } catch(e){}
+    pushDoc({ name: f.name, url: "/api/sample-pdf?id=" + encodeURIComponent(f.id), result: r, truth: f.truth, isSample: true, sampleId: f.id, expected });
   } catch(e){ busy("Błąd: " + e); return; }
   busy("");
 }
@@ -362,6 +363,23 @@ let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTime
 
 /* ---------- prawa kolumna ---------- */
 function fmt(v){ if (v === null || v === undefined) return null; return Array.isArray(v) ? v.map(x => x === null ? "—" : x).join(", ") : String(v); }
+/* porównanie pola z oczekiwanym JSON-em UZP (tylko dla przykładów z danych UZP) */
+function uzp(f, d){
+  if (!d.expected || !Object.keys(d.expected).length) return null;
+  // pola informacyjne (poza JSON-em UZP) porównujemy z odpowiednikiem we wzorcu; nadmiar pokazujemy jako "spoza wzorca"
+  const ALIAS = { "_info.pelnomocnicy": "Odwolujacy[0].pelnomocnik.imie_nazwisko" };
+  const info = f.path.startsWith("_");
+  if (info && !ALIAS[f.path]) return null;
+  const path = info ? ALIAS[f.path] : f.path;
+  const rx = new RegExp("^" + path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\[\\\]/g, "\\[\\d+\\]") + "$");
+  const exp = Object.entries(d.expected).filter(([k, v]) => rx.test(k) && v !== null).map(([, v]) => v);
+  const flat = v => Array.isArray(v) ? v.flatMap(flat) : (v === null || v === undefined ? [] : [v]);
+  const norm = v => typeof v === "number" ? String(Math.round(v * 1e6) / 1e6) : String(v).replace(/\s+/g, " ").trim().toLowerCase();
+  const all = flat(f.value);
+  const used = all, extra = [];      // porównujemy całość: jeśli pole pokazuje więcej niż wzorzec, to jest różnica (✗)
+  const got = used.map(norm).sort(), want = exp.map(norm).sort();
+  return { exp, extra, same: got.length === want.length && got.every((v, i) => v === want[i]) };
+}
 function renderFields(d){
   const r = d.result, c = r.classification;
   let h = `<div class="type">`;
@@ -393,6 +411,7 @@ function renderFields(d){
       <div class="name">${esc(f.name.replaceAll("_", " "))} <code style="color:var(--muted)">${esc(f.path)}</code></div>
       <div class="val ${val === null ? "none" : ""}">${val === null ? (f.status === "llm" ? "oczekuje na LLM" : "— brak —") : esc(val)}</div>
       <div class="side"><button class="fixbtn" data-fix="${i}" title="Podaj poprawną wartość i dowiedz się, co zmienić w konfiguracji">Popraw</button>${val !== null ? `<span class="tag ${m[1]}">${m[0]}</span>` : ""}${val !== null ? `<span class="pct ${low ? "low" : ""}">${Math.round(f.confidence*100)}%${low ? " · do sprawdzenia" : ""}</span>` : ""}${f.status === "domyslna" ? '<span class="tag">domyślna</span>' : ""}</div>
+      ${(() => { const x = uzp(f, d); return x && !x.same ? `<div class="warnline" style="color:var(--bad)">✗ wzorzec UZP oczekuje: <b>${esc(x.exp.join(", ") || "— puste —")}</b></div>` : (x ? `<div class="warnline" style="color:var(--ok)">✓ zgodne z wzorcem UZP</div>` : "") + (x && x.extra.length ? `<div class="warnline" style="color:var(--warn, #b45309)">⚠ spoza wzorca UZP (UZP oczekuje tylko pierwszej osoby): <b>${esc(x.extra.join(", "))}</b></div>` : ""); })()}
       ${f.warnings.length ? `<div class="warnline">⚠ ${f.warnings.map(esc).join("; ")}</div>` : ""}</div>`;
   });
   h += `<details class="box"><summary>Wynikowy JSON</summary>
@@ -478,9 +497,9 @@ function openFix(i){
     <textarea id="fx_val" rows="2"></textarea>
     <details open><summary class="meta" style="cursor:pointer">Tekst dokumentu: zaznacz myszką miejsce z poprawną wartością (wpisze się samo)</summary>
       <pre class="sel-text" id="fx_text">${esc(text)}</pre></details>
-    <label for="fx_why">Dlaczego to błąd? <span class="meta">(opcjonalnie, np. „pełnomocnik stoi po słowach Pełnomocnik odwołującego”)</span></label>
+    <label for="fx_why">Instrukcja: czego ma się nauczyć aplikacja? <span class="meta">(własnymi słowami, np. „po znalezieniu imienia i nazwiska szukaj dalej po przecinku”)</span></label>
     <textarea id="fx_why" rows="2"></textarea>
-    <label class="chk"><input type="checkbox" id="fx_llm" ${state.llmReachable ? "" : "disabled"}> Poproś LLM o propozycję wzorca (poza podpowiedzią bez LLM) ${state.llmReachable ? "" : "<span class=meta>(brak połączenia z LLM)</span>"}</label>
+    <label class="chk"><input type="checkbox" id="fx_llm" ${state.llmReachable ? "" : "disabled"}> Poproś LLM o propozycję wzorca (włącza się sam, gdy wpiszesz instrukcję powyżej: tylko LLM potrafi ją zrozumieć) ${state.llmReachable ? "" : "<span class=meta>(brak połączenia z LLM)</span>"}</label>
     <label class="chk"><input type="checkbox" id="fx_ex" checked> Dodaj jako przykład dla LLM (do bazy przykładów)</label>
     <div style="margin-top:10px"><button class="btn" id="fx_go">Analizuj</button> <span class="meta" id="fx_busy"></span></div>
     <div id="fx_res"></div>`;
@@ -488,6 +507,9 @@ function openFix(i){
     const t = String(window.getSelection()).trim(); if (!t) return;
     $("#fx_val").value = multi ? t : t.replace(/\s+/g, " ");
   });
+  $("#fx_why").addEventListener("input", () => { const c = $("#fx_llm"); if (c && !c.disabled) c.checked = !!$("#fx_why").value.trim(); });
+  const u = uzp(f, d);
+  if (u && !u.same && u.exp.length) { $("#fx_val").value = u.exp.join("\n"); $("#fx_why").placeholder = "Wartość wpisana automatycznie z wzorca UZP (oczekiwany JSON)"; }
   $("#fx_go").onclick = sendFix;
   $("#fixdlg").showModal();
 }

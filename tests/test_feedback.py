@@ -242,3 +242,17 @@ def test_llm_prompt_contains_examples_and_human_hints(memory):
 def test_hints_ignore_corrections_whose_value_was_not_in_the_text(memory):
     d, _ = _save("Zenon Nieistniejący")       # wartości nie ma w tekście -> brak kontekstu
     assert feedback.hints_for("odwolanie", ["pelnomocnik_imie_nazwisko"]) == []
+
+
+def test_llm_can_propose_list_pattern_from_user_instruction():
+    """Instrukcja "szukaj dalej po przecinku" -> LLM zwraca wzorzec z podziałem listy; aplikacja go sprawdza."""
+    t = ODW.replace("Pełnomocnik odwołującego: Jan Kowalski (radca prawny)",
+                    "reprezentowana przez: adw. Anna Lis, r. pr. Jan Kowalski")
+    reply = FakeClient(json.dumps({"pattern": r"reprezentowana\s+przez\s*:\s*([^\n]+)", "split": r"\s*,\s*",
+                                   "item": r"^(?:adw\.|r\.\s*pr\.)?\s*(.+)$", "explanation": "lista po przecinkach"}))
+    d = feedback.diagnose("odwolanie", "pelnomocnik_imie_nazwisko", pages(t), "adw. Anna Lis, r. pr. Jan Kowalski",
+                          "po znalezieniu imienia i nazwiska szukaj dalej po przecinku", use_llm=True, client=reply)
+    lp = next(p for p in d["proposals"] if p["source"] == "LLM")
+    assert isinstance(lp["patterns"][0], dict) and lp["patterns"][0]["split"]
+    assert "INSTRUKCJA UŻYTKOWNIKA" in feedback._llm_prompt(CLASSES["odwolanie"], next(f for f in CLASSES["odwolanie"].fields if f.name == "pelnomocnik_imie_nazwisko"),
+                                                            {}, t, None, [], ["x"], "szukaj po przecinku", [])

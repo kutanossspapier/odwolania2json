@@ -1,0 +1,12 @@
+{
+  "OdwolanieKIO": {"data": "2026-10-14", "czynnosc_dzien": "2026-10-02", "czynnosc_powod_id": 1,
+                   "czynnosc_opis": "Decyzja o odrzuceniu oferty", "miejscowosc": "Poznań"},
+  "Odwolujacy": [{"krs": "9998765432", "nazwa": "Brzeziński Budownictwo Sp. z o.o.", "nip": "9992223344",
+                  "regon": "999778899", "przez-pelnomocnika": 1,
+                  "pelnomocnik": {"imie_nazwisko": "Tomasz Kruk", "nazwa": "Kancelaria Kruk i Wspólnicy",
+                                  "mail": "biuro@kruk.example"}}],
+  "Zamawiajacy": [{"krs": "9991234567", "nazwa": "Gmina Miejska Zielonka-Wschód", "nip": "9995551212",
+                   "regon": "999334455", "prowadzacy_postepowanie": null}],
+  "ZamowieniePubliczne": {"numer_bzp": null, "numer_postepowania": "ZP.77.2026", "numer_ted": "555012-2026",
+                          "tytul": "Remont budynku szkoły podstawowej nr 4 wraz z zagospodarowaniem terenu"}
+}

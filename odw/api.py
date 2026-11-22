@@ -4,6 +4,7 @@ Uruchomienie:  uruchom.bat   (albo: python -m uvicorn odw.api:app --port 8000)
 """
 from __future__ import annotations
 
+import json
 import tempfile
 import time
 from pathlib import Path
@@ -123,6 +124,18 @@ def _sample_path(rel: str) -> Path:
     return p
 
 
+@app.get("/api/sample-expected")
+def api_sample_expected(id: str):
+    """Oczekiwany JSON UZP dla przykładu (spłaszczony: ścieżka -> wartość). Pozwala porównać wynik z wzorcem."""
+    from .evaluate import KINDS, flatten
+    p = _sample_path(id)
+    kind = KINDS.get(p.name)
+    js = p.parent / kind[1] if kind else None
+    if not js or not js.exists():
+        return {}
+    return flatten(json.loads(js.read_text(encoding="utf-8")))
+
+
 @app.get("/api/sample-pdf")
 def api_sample_pdf(id: str):
     return FileResponse(_sample_path(id), media_type="application/pdf")
@@ -149,7 +162,8 @@ def api_feedback(payload: dict = Body(...)):
     """Ręczna korekta pola: diagnoza + propozycja poprawki YAML (bez LLM, a opcjonalnie z LLM)."""
     try:
         client = None
-        use_llm = bool(payload.get("use_llm"))
+        # Gdy użytkownik napisał instrukcję ("dlaczego to błąd"), tylko LLM potrafi ją zrozumieć - wołamy go automatycznie.
+        use_llm = bool(payload.get("use_llm")) or bool(str(payload.get("reason", "")).strip())
         if use_llm:
             from . import llm
             client = llm.make_client()

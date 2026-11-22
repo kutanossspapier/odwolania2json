@@ -305,7 +305,7 @@ def diagnose_patterns(cls: DocClass, spec: FieldSpec, raw_field: dict, doc: PdfT
 
 # ---------------------------------------------------------------- LLM
 LLM_SYSTEM = ("Jesteś ekspertem od wyrażeń regularnych Pythona (moduł re) i polskich dokumentów zamówień publicznych. "
-              "Odpowiadasz WYŁĄCZNIE jednym obiektem JSON: {\"pattern\": \"...\", \"explanation\": \"...\"}.")
+              "Odpowiadasz WYŁĄCZNIE jednym obiektem JSON: {\"pattern\": \"...\", \"explanation\": \"...\"}, a dla wartości będących listą w jednej linii dodatkowo \"split\" i \"item\".")
 
 
 def _llm_prompt(cls, spec, raw_field, text, literal_pos, current, expected, reason, patterns, problem=None) -> str:
@@ -320,12 +320,15 @@ def _llm_prompt(cls, spec, raw_field, text, literal_pos, current, expected, reas
     msg = (f"Dokument typu „{cls.title}”. Pole „{spec.name}” ({spec.description}).\n"
            f"Obecne wzorce pola (pierwszy, który pasuje, wygrywa):\n{cur_pat}\n"
            f"Obecna (zła) wartość: {current!r}\nPoprawna wartość: {expected!r}\n"
-           f"Uwagi użytkownika: {reason or '(brak)'}\n\n"
+           f"INSTRUKCJA UŻYTKOWNIKA (nadrzędna - wykonaj ją dosłownie, to jest czego aplikacja ma się nauczyć): {reason or '(brak)'}\n\n"
            f"Fragment dokumentu:\n\"\"\"\n{excerpt}\n\"\"\"\n\n"
            "Napisz JEDEN nowy wzorzec regex (Python, flagi MULTILINE" + ci + "), który wyciągnie poprawną wartość "
            "w PIERWSZEJ grupie przechwytującej (dokładnie jedna taka grupa; pozostałe grupy nieprzechwytujące (?:...)). "
            "Wzorzec musi być ogólny: oprzyj go na etykiecie/otoczeniu, NIE wpisuj na sztywno samej wartości. "
-           "Możesz użyć makr: <<DATE>>, <<AMOUNT>>, <<ACCOUNT>>, <<EMAIL>>, <<PERSON>>, <<NAME>>, <<TITLE>>.")
+           "Możesz użyć makr: <<DATE>>, <<AMOUNT>>, <<ACCOUNT>>, <<EMAIL>>, <<PERSON>>, <<NAME>>, <<TITLE>>. "
+           "Jeśli instrukcja mówi, że wartości stoją po przecinkach / w liście (np. \"szukaj dalej po przecinku\"), "
+           "zwróć dodatkowo \"split\" (regex separatora, np. \"\\s*(?:,|;|\\s+oraz\\s+)\\s*\") i \"item\" "
+           "(regex jednego elementu listy, grupa 1 = wartość); wtedy \"pattern\" ma przechwycić CAŁĄ listę w jednej grupie.")
     if problem:
         msg += f"\n\nPoprzednia propozycja nie zadziałała: {problem}. Popraw ją."
     return msg
@@ -342,6 +345,8 @@ def llm_proposal(cls, spec, raw_field, doc, text, literal_pos, current, expected
             data = llm.parse_response(llm.chat_json(client, [{"role": "system", "content": LLM_SYSTEM},
                                                             {"role": "user", "content": prompt}]))
             pat = str(data.get("pattern", "")).strip()
+            if pat and str(data.get("split", "")).strip():          # wzorzec listy: przechwyt + podział + element
+                pat = {"regex": pat, "split": str(data["split"]).strip(), "item": str(data.get("item") or "(.+)").strip()}
         except Exception as e:                       # brak połączenia itp. - zostaje wersja bez LLM
             return {"source": "llm", "verified": False, "pattern": None, "error": llm.explain_error(e)}
         if not pat:

@@ -26,10 +26,12 @@ from . import settings
 from .classes import load_classes
 from .pipeline import process
 
-DEFAULT_DANE = settings.ROOT.parent / "dane-uzp" / "dane"
+DEFAULT_DANE = settings.ROOT / "dane" if (settings.ROOT / "dane").exists() else settings.ROOT.parent / "dane-uzp" / "dane"
 KINDS = {"odwolanie.pdf": ("odwolanie", "odwolanie.json"),
          "pelnomocnictwo.pdf": ("pelnomocnictwo", "pelnomocnictwo.json"),
-         "potwierdzenie_przelewu.pdf": ("przelew", "przelew.json")}
+         "potwierdzenie_przelewu.pdf": ("przelew", "przelew.json"),
+         "przelew.pdf": ("przelew", "przelew.json")}           # w części przykładów plik nazywa się inaczej
+SKANY = {"odwolania": "odwolanie", "pelnomocnictwa": "pelnomocnictwo", "potwierdzenia": "przelew"}
 IMPLEMENTED = {"regex", "rules", "lookup"}
 
 
@@ -107,6 +109,10 @@ def collect_cases(dane: Path):
                 cases.append((pdf, None, None))
     for pdf in sorted((dane / "negatywne").glob("*.pdf")):
         cases.append((pdf, None, None))
+    for folder, cls in SKANY.items():                 # skany (wymagają OCR): dane/skany/<typ>/0001/0001.pdf + .json
+        for pdf in sorted((dane / "skany" / folder).glob("*/*.pdf")):
+            if pdf.with_suffix(".json").exists():
+                cases.append((pdf, cls, pdf.with_suffix(".json")))
     return cases
 
 

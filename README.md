@@ -67,3 +67,20 @@ wdrożenie jest blokowane, gdy wzorzec pogarsza F1 na zbiorze treningowym. Popra
 ## Uruchomienie
 - `uruchom.bat` - strona na http://localhost:8000
 - `test_f1.bat` - F1 na danych treningowych UZP + testy jednostkowe
+
+## Dane UZP (w repozytorium) i sprawdzanie jakości
+
+Dane treningowe z https://github.com/Urzad-Zamowien-Publicznych/hacknation-2026 leżą w katalogu `dane/`:
+`przyklad_01..60/` (PDF + oczekiwany JSON), `negatywne/` (dokumenty spoza klas) oraz `skany/`
+(`odwolania/`, `pelnomocnictwa/`, `potwierdzenia/`; skany wymagają OCR). Oczekiwane formaty: `oczekiwane-json/`.
+
+Na innym komputerze wystarczy sklonować repozytorium - dane są już w środku:
+
+    git clone https://github.com/kutanossspapier/odwolania2json.git
+    cd odwolania2json
+    Windows:  setup.bat          (potem sprawdz.bat albo test_f1.bat)
+    Ubuntu:   bash setup_ubuntu.sh   (potem bash sprawdz.sh albo bash run.sh)
+
+Sprawdzanie dokument po dokumencie (✓/✗/⚠): `sprawdz.bat` / `bash sprawdz.sh` (opcje `--bad`, `--fields`,
+`--only odwolanie`, `--llm`). Zbiorczy F1: `python -m odw.evaluate`. Inny katalog z danymi: podaj go jako argument.
+Aby odświeżyć dane z oficjalnego repo UZP, skopiuj z niego `dane/` nad katalog `dane/` tutaj.

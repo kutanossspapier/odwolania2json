@@ -8,6 +8,7 @@ podstawie UI podświetli potem fragment w podglądzie.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,9 @@ import pdfplumber
 from . import settings
 
 MIN_CHARS_PER_PAGE = 30   # mniej znaków na stronie = skan
-OCR_DPI = 200
+OCR_DPI = int(os.getenv("OCR_DPI", "200"))             # rozdzielczość renderowania strony do OCR
+OCR_PSM = os.getenv("OCR_PSM", "")                      # tryb układu Tesseracta (np. 4, 6); puste = domyślny
+OCR_PREPROCESS = os.getenv("OCR_PREPROCESS", "0") == "1"   # wstępna obróbka obrazu skanu
 
 
 @dataclass
@@ -87,6 +90,13 @@ def clean_ocr_text(text: str) -> str:
     return _OCR_LONE_Z.sub("z", text)
 
 
+def preprocess_image(image):
+    """Skala szarości + rozciągnięcie kontrastu + lekkie wyostrzenie: skany z szumem i bladym tłem."""
+    from PIL import ImageFilter, ImageOps
+    gray = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=2)
+    return gray.filter(ImageFilter.SHARPEN)
+
+
 def _ocr_page(pdf_path: str, index: int) -> Page:
     import pypdfium2 as pdfium
     import pytesseract
@@ -94,12 +104,14 @@ def _ocr_page(pdf_path: str, index: int) -> Page:
     cmd = settings.tesseract_cmd()
     if cmd:
         pytesseract.pytesseract.tesseract_cmd = cmd
-    config = f"--tessdata-dir {settings.TESSDATA_DIR.as_posix()}"
+    config = f"--tessdata-dir {settings.TESSDATA_DIR.as_posix()}" + (f" --psm {OCR_PSM}" if OCR_PSM else "")
 
     pdf = pdfium.PdfDocument(pdf_path)
     page = pdf[index]
     scale = OCR_DPI / 72
     image = page.render(scale=scale).to_pil()
+    if OCR_PREPROCESS:
+        image = preprocess_image(image)
     width, height = page.get_size()
     data = pytesseract.image_to_data(image, lang=settings.OCR_LANG, config=config,
                                      output_type=pytesseract.Output.DICT)

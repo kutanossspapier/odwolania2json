@@ -21,9 +21,11 @@ from .pipeline import process
 
 app = FastAPI(title="Odwołania2json")
 WEB = settings.ROOT / "web"
-DANE = settings.ROOT.parent / "dane-uzp" / "dane"
+DANE = settings.ROOT / "dane" if (settings.ROOT / "dane").exists() else settings.ROOT.parent / "dane-uzp" / "dane"
 TRUE = {"odwolanie.pdf": "odwolanie", "pelnomocnictwo.pdf": "pelnomocnictwo",
-        "potwierdzenie_przelewu.pdf": "przelew"}
+        "potwierdzenie_przelewu.pdf": "przelew", "przelew.pdf": "przelew"}
+SKANY = {"odwolania": ("odwolanie", "odwolanie (skan)"), "pelnomocnictwa": ("pelnomocnictwo", "pełnomocnictwo (skan)"),
+         "potwierdzenia": ("przelew", "potwierdzenie przelewu (skan)")}
 LOW_CONFIDENCE = 0.75
 
 
@@ -111,6 +113,14 @@ def api_samples():
         files = [{"id": f"{d.name}/{p.name}", "name": p.name, "truth": TRUE.get(p.name)}
                  for p in sorted(d.glob("*.pdf"))]
         out.append({"id": d.name, "files": files})
+    nums = sorted({d.name for folder in SKANY for d in (DANE / "skany" / folder).glob("*") if d.is_dir()})
+    for n in nums:                                  # skany: ten sam numer w trzech katalogach = jeden komplet
+        files = []
+        for folder, (kind, label) in SKANY.items():
+            p = DANE / "skany" / folder / n / f"{n}.pdf"
+            if p.exists():
+                files.append({"id": f"skany/{folder}/{n}/{n}.pdf", "name": label, "truth": kind})
+        out.append({"id": f"skany_{n}", "files": files})
     neg = [{"id": f"negatywne/{p.name}", "name": p.name, "truth": None}
            for p in sorted((DANE / "negatywne").glob("*.pdf"))]
     out.append({"id": "negatywne", "files": neg})
@@ -130,8 +140,8 @@ def api_sample_expected(id: str):
     from .evaluate import KINDS, flatten
     p = _sample_path(id)
     kind = KINDS.get(p.name)
-    js = p.parent / kind[1] if kind else None
-    if not js or not js.exists():
+    js = p.parent / kind[1] if kind else p.with_suffix(".json")       # skany: 0001.pdf + 0001.json
+    if not js.exists():
         return {}
     return flatten(json.loads(js.read_text(encoding="utf-8")))
 

@@ -227,12 +227,14 @@ const qs = llm => "llm=" + llm + "&llm_only=" + (llm && state.llmOnly) + "&revie
 fetch("/api/samples").then(r => r.json()).then(list => {
   const sel = $("#samples");
   const sets = document.createElement("optgroup"); sets.label = "Komplety (odwołanie + pełnomocnictwo + przelew)";
+  const scans = document.createElement("optgroup"); scans.label = "Skany (OCR): odwołanie + pełnomocnictwo + potwierdzenie";
   const negs = document.createElement("optgroup"); negs.label = "Dokumenty negatywne (powinny dać pusty wynik)";
   list.forEach(g => {
     if (g.id === "negatywne") g.files.forEach(f => negs.append(new Option(f.name, "file:"+f.id)));
+    else if (g.id.startsWith("skany_")) scans.append(new Option(g.id.replace("skany_","Skan "), "set:"+g.id));
     else sets.append(new Option(g.id.replace("przyklad_","Przykład "), "set:"+g.id));
   });
-  sel.append(sets, negs); state.samples = list;
+  sel.append(sets, scans, negs); state.samples = list;
 });
 $("#samples").addEventListener("change", async e => {
   const v = e.target.value; if (!v) return;
